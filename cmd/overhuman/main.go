@@ -40,6 +40,12 @@ type Config struct {
 	ClaudeKey   string
 	OpenAIKey   string
 	DefaultSpec string
+
+	// Universal provider settings.
+	LLMProvider  string // "openai", "claude", "ollama", "lmstudio", "groq", "together", "openrouter", "custom"
+	LLMBaseURL   string // Custom base URL (for "custom" or override)
+	LLMModel     string // Default model override
+	LLMAPIKey    string // API key (for custom provider)
 }
 
 func main() {
@@ -80,11 +86,15 @@ Commands:
   version    Print version
 
 Environment variables:
-  ANTHROPIC_API_KEY   Claude API key
-  OPENAI_API_KEY      OpenAI API key
+  ANTHROPIC_API_KEY   Claude API key (auto-detected)
+  OPENAI_API_KEY      OpenAI API key (auto-detected)
   OVERHUMAN_DATA      Data directory (default: ~/.overhuman)
   OVERHUMAN_API_ADDR  API listen address (default: 127.0.0.1:9090)
   OVERHUMAN_NAME      Agent name (default: Overhuman)
+  LLM_PROVIDER        Provider: openai, claude, ollama, lmstudio, groq, together, openrouter, custom
+  LLM_BASE_URL        Custom API base URL (e.g., http://localhost:11434 for Ollama)
+  LLM_MODEL           Default model override (e.g., llama3.3, gpt-4o, claude-sonnet-4-20250514)
+  LLM_API_KEY         API key for custom/groq/together/openrouter providers
 
 `, appName, version, appName)
 }
@@ -116,6 +126,10 @@ func loadConfig() Config {
 		ClaudeKey:   os.Getenv("ANTHROPIC_API_KEY"),
 		OpenAIKey:   os.Getenv("OPENAI_API_KEY"),
 		DefaultSpec: "general",
+		LLMProvider: os.Getenv("LLM_PROVIDER"),
+		LLMBaseURL:  os.Getenv("LLM_BASE_URL"),
+		LLMModel:    os.Getenv("LLM_MODEL"),
+		LLMAPIKey:   os.Getenv("LLM_API_KEY"),
 	}
 }
 
@@ -136,20 +150,12 @@ func bootstrap(cfg Config) (pipeline.Dependencies, *reflection.Engine, error) {
 	}
 	log.Printf("[bootstrap] soul initialized: %s", cfg.AgentName)
 
-	// LLM provider.
-	var llm brain.LLMProvider
-	var providerName string
-	if cfg.ClaudeKey != "" {
-		llm = brain.NewClaudeProvider(cfg.ClaudeKey)
-		providerName = "claude"
-		log.Printf("[bootstrap] LLM: Claude")
-	} else if cfg.OpenAIKey != "" {
-		llm = brain.NewOpenAIProvider(cfg.OpenAIKey)
-		providerName = "openai"
-		log.Printf("[bootstrap] LLM: OpenAI")
-	} else {
-		return pipeline.Dependencies{}, nil, fmt.Errorf("no API key set (ANTHROPIC_API_KEY or OPENAI_API_KEY)")
+	// LLM provider — universal, supports any OpenAI-compatible endpoint.
+	llm, providerName, err := createLLMProvider(cfg)
+	if err != nil {
+		return pipeline.Dependencies{}, nil, err
 	}
+	log.Printf("[bootstrap] LLM: %s", providerName)
 
 	// Memory.
 	dbPath := filepath.Join(cfg.DataDir, "overhuman.db")
@@ -168,9 +174,14 @@ func bootstrap(cfg Config) (pipeline.Dependencies, *reflection.Engine, error) {
 
 	stm := memory.NewShortTermMemory(100)
 
-	// Brain.
-	router := brain.NewModelRouter()
-	router.SetProvider(providerName)
+	// Brain — model router uses models from the active provider.
+	var router *brain.ModelRouter
+	if up, ok := llm.(*brain.UniversalProvider); ok {
+		router = brain.NewModelRouterWithModels(up.ModelEntries())
+	} else {
+		router = brain.NewModelRouter()
+		router.SetProvider(providerName)
+	}
 	log.Printf("[bootstrap] model router: provider=%s", providerName)
 	ca := brain.NewContextAssembler()
 
@@ -190,6 +201,115 @@ func bootstrap(cfg Config) (pipeline.Dependencies, *reflection.Engine, error) {
 
 	log.Printf("[bootstrap] all subsystems ready")
 	return deps, reflEngine, nil
+}
+
+// createLLMProvider creates the appropriate LLM provider based on config.
+// Priority: LLM_PROVIDER env > ANTHROPIC_API_KEY > OPENAI_API_KEY.
+func createLLMProvider(cfg Config) (brain.LLMProvider, string, error) {
+	// Explicit provider selection via LLM_PROVIDER.
+	if cfg.LLMProvider != "" {
+		return createNamedProvider(cfg)
+	}
+
+	// Auto-detect from legacy env vars (backward compatible).
+	if cfg.ClaudeKey != "" {
+		p := brain.NewUniversalProvider(brain.AnthropicConfig(cfg.ClaudeKey))
+		return p, "claude", nil
+	}
+	if cfg.OpenAIKey != "" {
+		pcfg := brain.OpenAIConfig(cfg.OpenAIKey)
+		if cfg.LLMModel != "" {
+			pcfg.DefaultModel = cfg.LLMModel
+		}
+		p := brain.NewUniversalProvider(pcfg)
+		return p, "openai", nil
+	}
+
+	return nil, "", fmt.Errorf("no LLM provider configured.\n\nSet one of:\n" +
+		"  export OPENAI_API_KEY=sk-...          # OpenAI\n" +
+		"  export ANTHROPIC_API_KEY=sk-ant-...   # Claude\n" +
+		"  export LLM_PROVIDER=ollama            # Local Ollama\n" +
+		"  export LLM_PROVIDER=custom LLM_BASE_URL=http://... LLM_MODEL=...\n")
+}
+
+// createNamedProvider creates a provider by name.
+func createNamedProvider(cfg Config) (brain.LLMProvider, string, error) {
+	apiKey := cfg.LLMAPIKey
+	model := cfg.LLMModel
+
+	var pcfg brain.ProviderConfig
+
+	switch cfg.LLMProvider {
+	case "openai":
+		if apiKey == "" {
+			apiKey = cfg.OpenAIKey
+		}
+		if apiKey == "" {
+			return nil, "", fmt.Errorf("openai: set OPENAI_API_KEY or LLM_API_KEY")
+		}
+		pcfg = brain.OpenAIConfig(apiKey)
+
+	case "claude", "anthropic":
+		if apiKey == "" {
+			apiKey = cfg.ClaudeKey
+		}
+		if apiKey == "" {
+			return nil, "", fmt.Errorf("claude: set ANTHROPIC_API_KEY or LLM_API_KEY")
+		}
+		// Note: Claude native API uses different message format.
+		// Use the dedicated ClaudeProvider for full compatibility.
+		p := brain.NewClaudeProvider(apiKey)
+		return p, "claude", nil
+
+	case "ollama":
+		pcfg = brain.OllamaConfig(model)
+		if cfg.LLMBaseURL != "" {
+			pcfg.BaseURL = cfg.LLMBaseURL
+		}
+
+	case "lmstudio":
+		pcfg = brain.LMStudioConfig(model)
+		if cfg.LLMBaseURL != "" {
+			pcfg.BaseURL = cfg.LLMBaseURL
+		}
+
+	case "groq":
+		if apiKey == "" {
+			return nil, "", fmt.Errorf("groq: set LLM_API_KEY")
+		}
+		pcfg = brain.GroqConfig(apiKey)
+
+	case "together":
+		if apiKey == "" {
+			return nil, "", fmt.Errorf("together: set LLM_API_KEY")
+		}
+		pcfg = brain.TogetherConfig(apiKey)
+
+	case "openrouter":
+		if apiKey == "" {
+			return nil, "", fmt.Errorf("openrouter: set LLM_API_KEY")
+		}
+		pcfg = brain.OpenRouterConfig(apiKey)
+
+	case "custom":
+		if cfg.LLMBaseURL == "" {
+			return nil, "", fmt.Errorf("custom: set LLM_BASE_URL")
+		}
+		if model == "" {
+			model = "default"
+		}
+		pcfg = brain.CustomConfig("custom", cfg.LLMBaseURL, apiKey, model)
+
+	default:
+		return nil, "", fmt.Errorf("unknown LLM_PROVIDER: %q (use: openai, claude, ollama, lmstudio, groq, together, openrouter, custom)", cfg.LLMProvider)
+	}
+
+	if model != "" && pcfg.DefaultModel != model {
+		pcfg.DefaultModel = model
+	}
+
+	p := brain.NewUniversalProvider(pcfg)
+	return p, pcfg.Name, nil
 }
 
 // runCLI starts the agent in interactive CLI mode.

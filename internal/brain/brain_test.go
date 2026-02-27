@@ -425,6 +425,319 @@ func TestOpenAIProvider_Name(t *testing.T) {
 	}
 }
 
+// --- Universal Provider Tests ---
+
+func TestUniversalProvider_ImplementsInterface(t *testing.T) {
+	var _ LLMProvider = (*UniversalProvider)(nil)
+}
+
+func TestUniversalProvider_Name(t *testing.T) {
+	p := NewUniversalProvider(ProviderConfig{Name: "test-provider"})
+	if p.Name() != "test-provider" {
+		t.Errorf("name = %q", p.Name())
+	}
+}
+
+func TestUniversalProvider_Models(t *testing.T) {
+	p := NewUniversalProvider(ProviderConfig{
+		Name:         "test",
+		DefaultModel: "model-a",
+		Models: []ModelConfig{
+			{ID: "model-a", Tier: "cheap"},
+			{ID: "model-b", Tier: "mid"},
+			{ID: "model-c", Tier: "powerful"},
+		},
+	})
+	models := p.Models()
+	if len(models) != 3 {
+		t.Fatalf("models = %d, want 3", len(models))
+	}
+	if models[0] != "model-a" || models[1] != "model-b" || models[2] != "model-c" {
+		t.Errorf("models = %v", models)
+	}
+}
+
+func TestUniversalProvider_ModelEntries(t *testing.T) {
+	p := NewUniversalProvider(ProviderConfig{
+		Name: "myhost",
+		Models: []ModelConfig{
+			{ID: "fast", Tier: "cheap", CostPer1K: 0.001},
+			{ID: "smart", Tier: "powerful", CostPer1K: 0.05},
+		},
+	})
+	entries := p.ModelEntries()
+	if len(entries) != 2 {
+		t.Fatalf("entries = %d", len(entries))
+	}
+	if entries[0].Provider != "myhost" {
+		t.Errorf("provider = %q", entries[0].Provider)
+	}
+	if entries[0].Tier != TierCheap {
+		t.Errorf("tier = %q", entries[0].Tier)
+	}
+	if entries[1].Tier != TierPowerful {
+		t.Errorf("tier = %q", entries[1].Tier)
+	}
+}
+
+func TestUniversalProvider_DefaultModel(t *testing.T) {
+	p := NewUniversalProvider(ProviderConfig{
+		Name:         "test",
+		DefaultModel: "my-model",
+	})
+	// Should auto-create a model entry.
+	models := p.Models()
+	if len(models) != 1 || models[0] != "my-model" {
+		t.Errorf("models = %v", models)
+	}
+}
+
+func TestUniversalProvider_Complete(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer test-key" {
+			t.Errorf("auth = %q", r.Header.Get("Authorization"))
+		}
+		if r.Header.Get("X-Custom") != "value" {
+			t.Errorf("custom header = %q", r.Header.Get("X-Custom"))
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"id":    "resp-1",
+			"model": "test-model",
+			"choices": []map[string]interface{}{
+				{
+					"index":         0,
+					"finish_reason": "stop",
+					"message": map[string]string{
+						"role":    "assistant",
+						"content": "Hello from universal provider!",
+					},
+				},
+			},
+			"usage": map[string]int{
+				"prompt_tokens":     10,
+				"completion_tokens": 5,
+				"total_tokens":      15,
+			},
+		})
+	}))
+	defer server.Close()
+
+	p := NewUniversalProvider(ProviderConfig{
+		Name:         "test-backend",
+		BaseURL:      server.URL,
+		APIKey:       "test-key",
+		DefaultModel: "test-model",
+		ExtraHeaders: map[string]string{"X-Custom": "value"},
+		Models: []ModelConfig{
+			{ID: "test-model", Tier: "mid", InputCostPerM: 1.0, OutputCostPerM: 2.0},
+		},
+	})
+
+	resp, err := p.Complete(context.Background(), LLMRequest{
+		Messages: []Message{{Role: "user", Content: "hi"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if resp.Content != "Hello from universal provider!" {
+		t.Errorf("content = %q", resp.Content)
+	}
+	if resp.Model != "test-model" {
+		t.Errorf("model = %q", resp.Model)
+	}
+	if resp.InputTokens != 10 {
+		t.Errorf("input tokens = %d", resp.InputTokens)
+	}
+	if resp.OutputTokens != 5 {
+		t.Errorf("output tokens = %d", resp.OutputTokens)
+	}
+	if resp.StopReason != "stop" {
+		t.Errorf("stop reason = %q", resp.StopReason)
+	}
+}
+
+func TestUniversalProvider_CompleteNoAuth(t *testing.T) {
+	// Ollama-style: no API key needed.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "" {
+			t.Error("should not have auth header for local provider")
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"model": "llama3.3",
+			"choices": []map[string]interface{}{
+				{"message": map[string]string{"role": "assistant", "content": "Local response"}, "finish_reason": "stop"},
+			},
+			"usage": map[string]int{"prompt_tokens": 5, "completion_tokens": 3},
+		})
+	}))
+	defer server.Close()
+
+	p := NewUniversalProvider(OllamaConfig("llama3.3"))
+	// Override base URL to mock server.
+	p.config.BaseURL = server.URL
+
+	resp, err := p.Complete(context.Background(), LLMRequest{
+		Messages: []Message{{Role: "user", Content: "hi"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Content != "Local response" {
+		t.Errorf("content = %q", resp.Content)
+	}
+	if resp.CostUSD != 0 {
+		t.Errorf("cost should be 0 for local, got %f", resp.CostUSD)
+	}
+}
+
+func TestUniversalProvider_APIError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(401)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"error": map[string]string{
+				"type":    "auth_error",
+				"message": "invalid key",
+			},
+		})
+	}))
+	defer server.Close()
+
+	p := NewUniversalProvider(ProviderConfig{
+		Name:         "test",
+		BaseURL:      server.URL,
+		APIKey:       "bad-key",
+		DefaultModel: "model",
+	})
+
+	_, err := p.Complete(context.Background(), LLMRequest{
+		Messages: []Message{{Role: "user", Content: "hi"}},
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "invalid key") {
+		t.Errorf("error = %q", err.Error())
+	}
+}
+
+func TestUniversalProvider_CostCalculation(t *testing.T) {
+	p := NewUniversalProvider(ProviderConfig{
+		Name: "test",
+		Models: []ModelConfig{
+			{ID: "model-a", Tier: "mid", InputCostPerM: 2.0, OutputCostPerM: 10.0},
+			{ID: "model-b", Tier: "cheap", CostPer1K: 0.001},
+		},
+	})
+
+	// Per-million pricing.
+	cost := p.calculateCost("model-a", 1000, 500)
+	expected := 1000.0/1_000_000*2.0 + 500.0/1_000_000*10.0
+	if fmt.Sprintf("%.6f", cost) != fmt.Sprintf("%.6f", expected) {
+		t.Errorf("cost = %f, want %f", cost, expected)
+	}
+
+	// Per-1K pricing.
+	cost2 := p.calculateCost("model-b", 1000, 0)
+	if cost2 != 0.001 {
+		t.Errorf("cost = %f, want 0.001", cost2)
+	}
+
+	// Unknown model = free.
+	cost3 := p.calculateCost("unknown", 1000, 1000)
+	if cost3 != 0 {
+		t.Errorf("unknown cost = %f", cost3)
+	}
+}
+
+// --- Preset Config Tests ---
+
+func TestOpenAIConfig(t *testing.T) {
+	cfg := OpenAIConfig("sk-test")
+	if cfg.Name != "openai" {
+		t.Errorf("name = %q", cfg.Name)
+	}
+	if cfg.DefaultModel != "gpt-4o" {
+		t.Errorf("model = %q", cfg.DefaultModel)
+	}
+	if len(cfg.Models) < 3 {
+		t.Errorf("models = %d", len(cfg.Models))
+	}
+}
+
+func TestOllamaConfig(t *testing.T) {
+	cfg := OllamaConfig("mistral")
+	if cfg.Name != "ollama" {
+		t.Errorf("name = %q", cfg.Name)
+	}
+	if cfg.BaseURL != "http://localhost:11434" {
+		t.Errorf("url = %q", cfg.BaseURL)
+	}
+	if cfg.APIKey != "" {
+		t.Error("ollama should have no API key")
+	}
+	if cfg.DefaultModel != "mistral" {
+		t.Errorf("model = %q", cfg.DefaultModel)
+	}
+}
+
+func TestGroqConfig(t *testing.T) {
+	cfg := GroqConfig("gsk-test")
+	if cfg.Name != "groq" {
+		t.Errorf("name = %q", cfg.Name)
+	}
+	if !strings.Contains(cfg.BaseURL, "groq.com") {
+		t.Errorf("url = %q", cfg.BaseURL)
+	}
+}
+
+func TestCustomConfig(t *testing.T) {
+	cfg := CustomConfig("myserver", "http://gpu-box:8080", "secret", "phi-3")
+	if cfg.Name != "myserver" {
+		t.Errorf("name = %q", cfg.Name)
+	}
+	if cfg.DefaultModel != "phi-3" {
+		t.Errorf("model = %q", cfg.DefaultModel)
+	}
+}
+
+// --- Router with Provider Filter Tests ---
+
+func TestModelRouter_SetProvider(t *testing.T) {
+	r := NewModelRouter()
+	r.SetProvider("openai")
+
+	got := r.Select("simple", 100.0)
+	if !strings.Contains(got, "gpt") && !strings.Contains(got, "mini") {
+		t.Errorf("openai filter should return openai model, got %s", got)
+	}
+
+	r.SetProvider("claude")
+	got2 := r.Select("simple", 100.0)
+	if !strings.Contains(got2, "claude") && !strings.Contains(got2, "haiku") {
+		t.Errorf("claude filter should return claude model, got %s", got2)
+	}
+}
+
+func TestModelRouter_ProviderWithEntries(t *testing.T) {
+	entries := []ModelEntry{
+		{ID: "local-fast", Provider: "ollama", Tier: TierCheap, CostPer1K: 0},
+		{ID: "local-smart", Provider: "ollama", Tier: TierMid, CostPer1K: 0},
+	}
+	r := NewModelRouterWithModels(entries)
+
+	got := r.Select("simple", 100.0)
+	if got != "local-fast" {
+		t.Errorf("got %s, want local-fast", got)
+	}
+
+	got2 := r.Select("moderate", 100.0)
+	if got2 != "local-smart" {
+		t.Errorf("got %s, want local-smart", got2)
+	}
+}
+
 func TestEstimateTokens(t *testing.T) {
 	if estimateTokens("") != 0 {
 		t.Error("empty string should be 0 tokens")
