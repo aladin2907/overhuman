@@ -116,7 +116,7 @@ Stubs (need external services): Browser Automation, Database Query, Email Manage
 ## Testing
 
 ```bash
-go test ./...         # 526 tests across 18 packages
+go test ./...         # 551 tests across 18 packages
 go test ./... -v      # Verbose output
 go test ./... -race   # Race condition detection
 ```
@@ -127,9 +127,9 @@ All tests use mocked LLM responses (`httptest.Server`) and mock transports — n
 
 | Metric | Value |
 |--------|-------|
-| Go files | 93 |
-| Lines of Go | ~23,200 |
-| Tests | 526 |
+| Go files | 96 |
+| Lines of Go | ~25,000 |
+| Tests | 551 |
 | Packages | 18 |
 | External deps | 2 |
 | Test coverage | All packages |
@@ -144,7 +144,7 @@ All tests use mocked LLM responses (`httptest.Server`) and mock transports — n
 - [x] **Starter Skills**: 20 skills (11 full implementations, 9 stubs)
 - [x] **Fractal Agents**: Registry, Factory, SubagentManager, Pipeline integration
 - [x] **Security**: Sanitizer, Audit, Encryption, Validator, Policy Enforcer
-- [ ] Real IMAP/SMTP for Email adapter
+- [x] **Real IMAP/SMTP**: Full email adapter (IMAP4rev1 client + SMTP sender, stdlib only)
 
 ## Spec & Docs
 

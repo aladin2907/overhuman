@@ -32,7 +32,7 @@
 | Telegram Sense | `internal/senses/telegram.go` | ✅ | ✅ | Bot API long-polling + webhook, whitelist |
 | Slack Sense | `internal/senses/slack.go` | ✅ | ✅ | Events API webhook, URL verification, bot filter |
 | Discord Sense | `internal/senses/discord.go` | ✅ | ✅ | Interactions endpoint, slash commands |
-| Email Sense | `internal/senses/email.go` | ✅ | ✅ | IMAP polling (placeholder), SMTP send |
+| Email Sense | `internal/senses/email.go` | ✅ | ✅ | Real IMAP4rev1 + SMTP (stdlib only) |
 | Webhook Sense | `internal/senses/webhook.go` | ✅ | ✅ | |
 | Skill System (LLM/Code/Hybrid) | `internal/instruments/skill.go` | ✅ | ✅ | |
 | Code Generator | `internal/instruments/generator.go` | ✅ | ✅ | |
@@ -163,12 +163,35 @@
 
 ---
 
+## Real IMAP/SMTP Email Adapter ✅ COMPLETE
+
+**Goal:** Replace placeholder email adapter with real IMAP fetching and SMTP sending using only Go stdlib
+
+| Component | File | Status | Tests | Notes |
+|-----------|------|--------|-------|-------|
+| IMAP Client | `internal/senses/imap.go` | ✅ | ✅ | Minimal IMAP4rev1: LOGIN, SELECT, SEARCH UNSEEN, FETCH, STORE +FLAGS, LOGOUT |
+| SMTP Sender | `internal/senses/smtp.go` | ✅ | ✅ | STARTTLS, PlainAuth, RFC 2822 headers, multi-recipient |
+| Email Adapter | `internal/senses/email.go` | ✅ | ✅ | Real IMAP polling, mark-as-seen, allowed sender filter, SMTP send |
+| Mock IMAP Server | `internal/senses/email_test.go` | ✅ | ✅ | Full IMAP protocol mock (LOGIN, SELECT, SEARCH, FETCH, STORE, LOGOUT) |
+| Mock SMTP Server | `internal/senses/email_test.go` | ✅ | ✅ | Full SMTP mock (EHLO, MAIL FROM, RCPT TO, DATA, QUIT) |
+
+**Key features:**
+- Zero new dependencies — uses `crypto/tls`, `net/smtp`, `bufio`, `net` from stdlib
+- TLS support for IMAP (port 993) and STARTTLS for SMTP (port 587)
+- IMAP SEARCH UNSEEN → FETCH → STORE +FLAGS (\Seen) cycle
+- Email address extraction from "Display Name <addr>" format
+- Case-insensitive allowed sender matching
+- Dependency injection (DialFunc, SMTPSendFunc) for testability
+- 25 email-specific tests with mock IMAP/SMTP servers
+
+---
+
 ## Statistics
 
 | Metric | Value |
 |--------|-------|
-| Total Go files | 93 |
-| Total lines of Go | ~23,200 |
-| Total tests | 526 |
+| Total Go files | 96 |
+| Total lines of Go | ~25,000 |
+| Total tests | 551 |
 | Packages with tests | 18/18 |
 | External dependencies | 2 (uuid, sqlite) |

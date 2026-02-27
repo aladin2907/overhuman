@@ -100,8 +100,9 @@ func TestMetricsCollector_Query_TimeSince(t *testing.T) {
 
 	// Record a point, sleep briefly, record another.
 	c.Record(MetricQuality, 0.5, nil)
+	time.Sleep(10 * time.Millisecond)
 	midpoint := time.Now()
-	time.Sleep(2 * time.Millisecond)
+	time.Sleep(10 * time.Millisecond)
 	c.Record(MetricQuality, 0.9, nil)
 
 	recent := c.Query(MetricQuality, midpoint)

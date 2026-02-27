@@ -7,7 +7,7 @@ Self-evolving universal assistant daemon in Go. Learns from repetition, auto-gen
 ## Quick commands
 
 ```bash
-go test ./...                          # Run all tests (526 tests, 18 packages)
+go test ./...                          # Run all tests (551 tests, 18 packages)
 go run ./cmd/overhuman/ cli            # Interactive CLI mode
 go run ./cmd/overhuman/ start          # Daemon mode (HTTP :9090)
 go run ./cmd/overhuman/ status         # Health check
@@ -76,6 +76,6 @@ Phase tracking: `docs/PHASES.md`
 - **Starter Skills**: 20 skills in 5 categories (dev, communication, research, files, automation) — `internal/skills/`
 - **Fractal Agents**: Registry, Factory (spawn/retire/promote), SubagentManager (delegate/fan-out/best-of-N), Pipeline integration
 - **Security Architecture**: Input sanitizer (prompt injection), audit logger, AES-256-GCM encryption, skill validator (manifests+signatures), policy enforcer, rate limiter
+- **Real IMAP/SMTP**: Full IMAP4rev1 client (LOGIN, SELECT, SEARCH, FETCH, STORE), SMTP sender (STARTTLS, PlainAuth), MIME parsing — stdlib only, zero new deps
 
-### Next
-- Real IMAP/SMTP implementation for Email adapter
+### All phases complete. No remaining TODOs.
