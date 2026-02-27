@@ -1,0 +1,29 @@
+# Binary
+overhuman
+*.exe
+
+# IDE & tools
+.idea/
+.vscode/
+.claude/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go
+vendor/
+
+# Data directory (runtime)
+.overhuman/
+
+# Environment
+.env
+.env.*
+
+# Test coverage
+coverage.out
+coverage.html
