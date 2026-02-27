@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -105,11 +107,11 @@ func runConfigure() {
 		name string
 		desc string
 	}{
-		{"openai", "OpenAI", "GPT-4o, GPT-4o-mini (requires API key)"},
-		{"claude", "Anthropic Claude", "Claude Sonnet, Haiku, Opus (requires API key)"},
-		{"ollama", "Ollama", "Local models — llama3, mistral, etc. (free, no API key)"},
+		{"openai", "OpenAI", "o3, o4-mini, GPT-4.1 (requires API key)"},
+		{"claude", "Anthropic Claude", "Claude Sonnet 4.6, Opus 4.6, Haiku (requires API key)"},
+		{"ollama", "Ollama", "Local models — llama3, qwen, deepseek, etc. (free, no API key)"},
 		{"lmstudio", "LM Studio", "Local models via LM Studio (free, no API key)"},
-		{"groq", "Groq", "Fast inference — Llama, Mixtral (requires API key)"},
+		{"groq", "Groq", "Fast inference — Llama, Qwen, DeepSeek (requires API key)"},
 		{"together", "Together AI", "Open-source models hosted (requires API key)"},
 		{"openrouter", "OpenRouter", "Multi-model gateway (requires API key)"},
 		{"custom", "Custom endpoint", "Any OpenAI-compatible API"},
@@ -194,25 +196,64 @@ func runConfigure() {
 		fmt.Printf("  ✓ Base URL: %s\n\n", url)
 	}
 
-	// Step 4: Model (optional override).
-	defaultModel := ""
-	switch selectedProvider.key {
-	case "openai":
-		defaultModel = "gpt-4o"
-	case "claude":
-		defaultModel = "claude-sonnet-4-20250514"
-	case "ollama":
-		defaultModel = "llama3.3"
-	case "groq":
-		defaultModel = "llama-3.3-70b-versatile"
-	}
-	if existing.Model != "" {
-		defaultModel = existing.Model
+	// Step 4: Model selection.
+	// Fetch models dynamically from the provider API.
+	fmt.Print("  Connecting to provider... ")
+	models := fetchModelsFromAPI(selectedProvider.key, cfg.APIKey, cfg.BaseURL)
+	if len(models) > 0 {
+		fmt.Printf("OK, %d models available\n\n", len(models))
+	} else {
+		fmt.Println("could not reach provider")
+		fmt.Println("  Check your API key and network connection.")
+		fmt.Println()
 	}
 
-	model := promptString(reader, "Default model", defaultModel)
-	cfg.Model = model
-	fmt.Printf("  ✓ Model: %s\n\n", model)
+	if len(models) > 0 {
+		fmt.Println("Select default model:")
+		fmt.Println()
+
+		defaultModelIdx := ""
+		for i, m := range models {
+			marker := "  "
+			if existing.Model == m.id {
+				marker = "→ "
+				defaultModelIdx = fmt.Sprintf("%d", i+1)
+			}
+			if m.desc != "" {
+				fmt.Printf("  %s%d) %-40s %s\n", marker, i+1, m.id, m.desc)
+			} else {
+				fmt.Printf("  %s%d) %s\n", marker, i+1, m.id)
+			}
+		}
+
+		// Last option: custom (type manually).
+		customIdx := len(models) + 1
+		fmt.Printf("    %d) %-40s %s\n", customIdx, "Other", "Enter model name manually")
+		fmt.Println()
+
+		// If no existing model matched, default to first.
+		if defaultModelIdx == "" {
+			defaultModelIdx = "1"
+		}
+
+		choice := promptChoice(reader, "Choose model", defaultModelIdx, customIdx)
+		if choice == customIdx {
+			model := promptString(reader, "Model name", "")
+			cfg.Model = model
+		} else {
+			cfg.Model = models[choice-1].id
+		}
+		fmt.Printf("  ✓ Model: %s\n\n", cfg.Model)
+	} else {
+		// No list at all — free input.
+		defaultModel := ""
+		if existing.Model != "" {
+			defaultModel = existing.Model
+		}
+		model := promptString(reader, "Model name", defaultModel)
+		cfg.Model = model
+		fmt.Printf("  ✓ Model: %s\n\n", model)
+	}
 
 	// Step 5: Agent name.
 	defaultName := "Overhuman"
@@ -440,6 +481,314 @@ func runDoctor() {
 	} else {
 		fmt.Printf("  %d/%d checks passed, %d issue(s) found.\n\n", checks-issues, checks, issues)
 	}
+}
+
+// --- Model discovery ---
+
+type modelOption struct {
+	id   string
+	desc string
+}
+
+// fetchModelsFromAPI queries the provider's API for available models.
+// Returns nil if the API is unreachable or returns an error.
+func fetchModelsFromAPI(provider, apiKey, baseURL string) []modelOption {
+	var reqURL string
+	switch provider {
+	case "openai":
+		reqURL = "https://api.openai.com/v1/models"
+	case "claude", "anthropic":
+		reqURL = "https://api.anthropic.com/v1/models?limit=100"
+	case "ollama":
+		base := baseURL
+		if base == "" {
+			base = "http://localhost:11434"
+		}
+		reqURL = strings.TrimRight(base, "/") + "/api/tags"
+	case "lmstudio":
+		base := baseURL
+		if base == "" {
+			base = "http://localhost:1234"
+		}
+		reqURL = strings.TrimRight(base, "/") + "/v1/models"
+	case "groq":
+		reqURL = "https://api.groq.com/openai/v1/models"
+	case "together":
+		reqURL = "https://api.together.xyz/v1/models"
+	case "openrouter":
+		reqURL = "https://openrouter.ai/api/v1/models"
+	case "custom":
+		if baseURL == "" {
+			return nil
+		}
+		reqURL = strings.TrimRight(baseURL, "/") + "/v1/models"
+	default:
+		return nil
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequest("GET", reqURL, nil)
+	if err != nil {
+		return nil
+	}
+
+	// Auth headers.
+	if apiKey != "" {
+		switch provider {
+		case "claude", "anthropic":
+			req.Header.Set("x-api-key", apiKey)
+			req.Header.Set("anthropic-version", "2023-06-01")
+		default:
+			req.Header.Set("Authorization", "Bearer "+apiKey)
+		}
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil
+	}
+
+	return parseModelsResponse(provider, body)
+}
+
+// parseModelsResponse parses the JSON response from a provider's model list API.
+func parseModelsResponse(provider string, body []byte) []modelOption {
+	switch provider {
+	case "ollama":
+		return parseOllamaModels(body)
+	case "claude", "anthropic":
+		return parseAnthropicModels(body)
+	case "together":
+		return parseTogetherModels(body)
+	case "openrouter":
+		return parseOpenRouterModels(body)
+	case "lmstudio":
+		return parseLMStudioModels(body)
+	default:
+		// OpenAI, Groq, custom — all use OpenAI-compatible format.
+		return parseOpenAIModels(body, provider)
+	}
+}
+
+// parseOpenAIModels parses OpenAI-compatible model list (OpenAI, Groq, custom).
+func parseOpenAIModels(body []byte, provider string) []modelOption {
+	var resp struct {
+		Data []struct {
+			ID            string `json:"id"`
+			OwnedBy       string `json:"owned_by"`
+			ContextWindow int    `json:"context_window,omitempty"` // Groq extension
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil
+	}
+
+	var models []modelOption
+	for _, m := range resp.Data {
+		// Filter out non-chat models (embeddings, tts, whisper, dall-e, etc.).
+		id := strings.ToLower(m.ID)
+		if strings.HasPrefix(id, "text-embedding") ||
+			strings.HasPrefix(id, "whisper") ||
+			strings.HasPrefix(id, "tts") ||
+			strings.HasPrefix(id, "dall-e") ||
+			strings.Contains(id, "embed") ||
+			strings.Contains(id, "moderation") ||
+			strings.HasPrefix(id, "babbage") ||
+			strings.HasPrefix(id, "davinci") {
+			continue
+		}
+
+		desc := ""
+		if m.ContextWindow > 0 {
+			desc = fmt.Sprintf("%dk context", m.ContextWindow/1000)
+		}
+		if m.OwnedBy != "" && m.OwnedBy != "system" {
+			if desc != "" {
+				desc += ", "
+			}
+			desc += m.OwnedBy
+		}
+		models = append(models, modelOption{id: m.ID, desc: desc})
+	}
+
+	sort.Slice(models, func(i, j int) bool {
+		return models[i].id < models[j].id
+	})
+
+	// Limit to reasonable number for display.
+	if len(models) > 20 {
+		models = models[:20]
+	}
+	return models
+}
+
+// parseAnthropicModels parses Anthropic's model list response.
+func parseAnthropicModels(body []byte) []modelOption {
+	var resp struct {
+		Data []struct {
+			ID          string `json:"id"`
+			DisplayName string `json:"display_name"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil
+	}
+
+	var models []modelOption
+	for _, m := range resp.Data {
+		models = append(models, modelOption{id: m.ID, desc: m.DisplayName})
+	}
+	return models
+}
+
+// parseOllamaModels parses Ollama's /api/tags response.
+func parseOllamaModels(body []byte) []modelOption {
+	var resp struct {
+		Models []struct {
+			Name    string `json:"name"`
+			Details struct {
+				ParameterSize    string `json:"parameter_size"`
+				QuantizationLevel string `json:"quantization_level"`
+				Family           string `json:"family"`
+			} `json:"details"`
+		} `json:"models"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil
+	}
+
+	var models []modelOption
+	for _, m := range resp.Models {
+		desc := ""
+		if m.Details.ParameterSize != "" {
+			desc = m.Details.ParameterSize
+		}
+		if m.Details.QuantizationLevel != "" {
+			if desc != "" {
+				desc += " "
+			}
+			desc += m.Details.QuantizationLevel
+		}
+		models = append(models, modelOption{id: m.Name, desc: desc})
+	}
+	return models
+}
+
+// parseLMStudioModels parses LM Studio's model list.
+func parseLMStudioModels(body []byte) []modelOption {
+	var resp struct {
+		Data []struct {
+			ID           string `json:"id"`
+			Type         string `json:"type"`
+			Arch         string `json:"arch"`
+			Quantization string `json:"quantization"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil
+	}
+
+	var models []modelOption
+	for _, m := range resp.Data {
+		// Filter: only LLM and VLM, skip embeddings.
+		if m.Type == "embeddings" {
+			continue
+		}
+		desc := ""
+		if m.Arch != "" {
+			desc = m.Arch
+		}
+		if m.Quantization != "" {
+			if desc != "" {
+				desc += " "
+			}
+			desc += m.Quantization
+		}
+		models = append(models, modelOption{id: m.ID, desc: desc})
+	}
+	return models
+}
+
+// parseTogetherModels parses Together AI's model list (bare JSON array).
+func parseTogetherModels(body []byte) []modelOption {
+	var resp []struct {
+		ID          string `json:"id"`
+		DisplayName string `json:"display_name"`
+		Type        string `json:"type"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil
+	}
+
+	var models []modelOption
+	for _, m := range resp {
+		// Only chat models.
+		if m.Type != "" && m.Type != "chat" && m.Type != "language" && m.Type != "code" {
+			continue
+		}
+		desc := m.DisplayName
+		models = append(models, modelOption{id: m.ID, desc: desc})
+	}
+
+	// Limit for display.
+	if len(models) > 25 {
+		models = models[:25]
+	}
+	return models
+}
+
+// parseOpenRouterModels parses OpenRouter's model list.
+func parseOpenRouterModels(body []byte) []modelOption {
+	var resp struct {
+		Data []struct {
+			ID           string `json:"id"`
+			Name         string `json:"name"`
+			Architecture struct {
+				OutputModalities []string `json:"output_modalities"`
+			} `json:"architecture"`
+			ContextLength int `json:"context_length"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return nil
+	}
+
+	var models []modelOption
+	for _, m := range resp.Data {
+		// Filter: only text output models.
+		hasText := false
+		for _, mod := range m.Architecture.OutputModalities {
+			if mod == "text" {
+				hasText = true
+				break
+			}
+		}
+		if !hasText {
+			continue
+		}
+
+		desc := m.Name
+		if m.ContextLength > 0 {
+			desc += fmt.Sprintf(" (%dk)", m.ContextLength/1000)
+		}
+		models = append(models, modelOption{id: m.ID, desc: desc})
+	}
+
+	// OpenRouter has hundreds of models — limit.
+	if len(models) > 30 {
+		models = models[:30]
+	}
+	return models
 }
 
 // --- Terminal helpers ---

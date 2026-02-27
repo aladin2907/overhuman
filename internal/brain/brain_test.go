@@ -658,7 +658,7 @@ func TestOpenAIConfig(t *testing.T) {
 	if cfg.Name != "openai" {
 		t.Errorf("name = %q", cfg.Name)
 	}
-	if cfg.DefaultModel != "gpt-4o" {
+	if cfg.DefaultModel != "o4-mini" {
 		t.Errorf("model = %q", cfg.DefaultModel)
 	}
 	if len(cfg.Models) < 3 {

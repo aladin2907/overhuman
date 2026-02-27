@@ -293,11 +293,14 @@ func OpenAIConfig(apiKey string) ProviderConfig {
 		Name:         "openai",
 		BaseURL:      "https://api.openai.com",
 		APIKey:       apiKey,
-		DefaultModel: "gpt-4o",
+		DefaultModel: "o4-mini",
 		Models: []ModelConfig{
-			{ID: "gpt-4o-mini", Tier: "cheap", InputCostPerM: 0.15, OutputCostPerM: 0.60},
-			{ID: "gpt-4o", Tier: "mid", InputCostPerM: 2.50, OutputCostPerM: 10.0},
-			{ID: "gpt-4.1", Tier: "powerful", InputCostPerM: 2.00, OutputCostPerM: 8.00},
+			{ID: "o4-mini", Tier: "cheap", InputCostPerM: 1.10, OutputCostPerM: 4.40},
+			{ID: "o3", Tier: "mid", InputCostPerM: 2.00, OutputCostPerM: 8.00},
+			{ID: "o3-pro", Tier: "powerful", InputCostPerM: 20.0, OutputCostPerM: 80.0},
+			{ID: "gpt-4.1-nano", Tier: "cheap", InputCostPerM: 0.10, OutputCostPerM: 0.40},
+			{ID: "gpt-4.1-mini", Tier: "cheap", InputCostPerM: 0.40, OutputCostPerM: 1.60},
+			{ID: "gpt-4.1", Tier: "mid", InputCostPerM: 2.00, OutputCostPerM: 8.00},
 		},
 	}
 }
@@ -314,9 +317,11 @@ func AnthropicConfig(apiKey string) ProviderConfig {
 		CompletionsPath: "/v1/messages",
 		ExtraHeaders:    map[string]string{"anthropic-version": "2023-06-01"},
 		Models: []ModelConfig{
-			{ID: "claude-haiku-3-5-20241022", Tier: "cheap", InputCostPerM: 0.25, OutputCostPerM: 1.25},
+			{ID: "claude-haiku-4-5-20251015", Tier: "cheap", InputCostPerM: 0.80, OutputCostPerM: 4.0},
 			{ID: "claude-sonnet-4-20250514", Tier: "mid", InputCostPerM: 3.0, OutputCostPerM: 15.0},
+			{ID: "claude-sonnet-4-6-20260217", Tier: "mid", InputCostPerM: 3.0, OutputCostPerM: 15.0},
 			{ID: "claude-opus-4-20250514", Tier: "powerful", InputCostPerM: 15.0, OutputCostPerM: 75.0},
+			{ID: "claude-opus-4-6-20260205", Tier: "powerful", InputCostPerM: 15.0, OutputCostPerM: 75.0},
 		},
 	}
 }
@@ -357,12 +362,13 @@ func OpenRouterConfig(apiKey string) ProviderConfig {
 		Name:         "openrouter",
 		BaseURL:      "https://openrouter.ai/api",
 		APIKey:       apiKey,
-		DefaultModel: "anthropic/claude-sonnet-4-20250514",
+		DefaultModel: "anthropic/claude-sonnet-4-6-20260217",
 		Models: []ModelConfig{
-			{ID: "anthropic/claude-haiku-3-5-20241022", Tier: "cheap", InputCostPerM: 0.25, OutputCostPerM: 1.25},
-			{ID: "anthropic/claude-sonnet-4-20250514", Tier: "mid", InputCostPerM: 3.0, OutputCostPerM: 15.0},
-			{ID: "openai/gpt-4o", Tier: "mid", InputCostPerM: 2.50, OutputCostPerM: 10.0},
-			{ID: "openai/gpt-4o-mini", Tier: "cheap", InputCostPerM: 0.15, OutputCostPerM: 0.60},
+			{ID: "anthropic/claude-haiku-4-5-20251015", Tier: "cheap", InputCostPerM: 0.80, OutputCostPerM: 4.0},
+			{ID: "anthropic/claude-sonnet-4-6-20260217", Tier: "mid", InputCostPerM: 3.0, OutputCostPerM: 15.0},
+			{ID: "anthropic/claude-opus-4-6-20260205", Tier: "powerful", InputCostPerM: 15.0, OutputCostPerM: 75.0},
+			{ID: "openai/o4-mini", Tier: "cheap", InputCostPerM: 1.10, OutputCostPerM: 4.40},
+			{ID: "openai/o3", Tier: "mid", InputCostPerM: 2.00, OutputCostPerM: 8.00},
 			{ID: "google/gemini-2.5-pro", Tier: "powerful", InputCostPerM: 1.25, OutputCostPerM: 10.0},
 		},
 	}
@@ -378,6 +384,8 @@ func GroqConfig(apiKey string) ProviderConfig {
 		Models: []ModelConfig{
 			{ID: "llama-3.3-70b-versatile", Tier: "mid", InputCostPerM: 0.59, OutputCostPerM: 0.79},
 			{ID: "llama-3.1-8b-instant", Tier: "cheap", InputCostPerM: 0.05, OutputCostPerM: 0.08},
+			{ID: "qwen-qwq-32b", Tier: "mid", InputCostPerM: 0.29, OutputCostPerM: 0.39},
+			{ID: "deepseek-r1-distill-llama-70b", Tier: "mid", InputCostPerM: 0.75, OutputCostPerM: 0.99},
 		},
 	}
 }

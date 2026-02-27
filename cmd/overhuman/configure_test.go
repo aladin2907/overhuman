@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -253,5 +254,204 @@ func TestTestProviderConnection_InvalidURL(t *testing.T) {
 	err := testProviderConnection(cfg)
 	if err == nil {
 		t.Error("expected error for custom with no base URL")
+	}
+}
+
+// --- Model parsing tests ---
+
+func TestParseOpenAIModels(t *testing.T) {
+	body := []byte(`{
+		"object": "list",
+		"data": [
+			{"id": "o4-mini", "object": "model", "owned_by": "openai"},
+			{"id": "o3", "object": "model", "owned_by": "openai"},
+			{"id": "text-embedding-3-small", "object": "model", "owned_by": "openai"},
+			{"id": "whisper-1", "object": "model", "owned_by": "openai"},
+			{"id": "tts-1", "object": "model", "owned_by": "openai"},
+			{"id": "dall-e-3", "object": "model", "owned_by": "openai"},
+			{"id": "gpt-4.1", "object": "model", "owned_by": "openai"}
+		]
+	}`)
+
+	models := parseOpenAIModels(body, "openai")
+	if len(models) != 3 {
+		t.Fatalf("expected 3 chat models, got %d: %v", len(models), models)
+	}
+
+	// Should have filtered out embedding, whisper, tts, dall-e.
+	ids := map[string]bool{}
+	for _, m := range models {
+		ids[m.id] = true
+	}
+	if ids["text-embedding-3-small"] || ids["whisper-1"] || ids["tts-1"] || ids["dall-e-3"] {
+		t.Error("should have filtered non-chat models")
+	}
+	if !ids["o4-mini"] || !ids["o3"] || !ids["gpt-4.1"] {
+		t.Error("missing expected chat models")
+	}
+}
+
+func TestParseAnthropicModels(t *testing.T) {
+	body := []byte(`{
+		"data": [
+			{"id": "claude-sonnet-4-6-20260217", "display_name": "Claude Sonnet 4.6", "type": "model"},
+			{"id": "claude-opus-4-6-20260205", "display_name": "Claude Opus 4.6", "type": "model"}
+		],
+		"has_more": false
+	}`)
+
+	models := parseAnthropicModels(body)
+	if len(models) != 2 {
+		t.Fatalf("expected 2 models, got %d", len(models))
+	}
+	if models[0].id != "claude-sonnet-4-6-20260217" {
+		t.Errorf("model[0].id = %q", models[0].id)
+	}
+	if models[0].desc != "Claude Sonnet 4.6" {
+		t.Errorf("model[0].desc = %q", models[0].desc)
+	}
+}
+
+func TestParseOllamaModels(t *testing.T) {
+	body := []byte(`{
+		"models": [
+			{
+				"name": "llama3.3:latest",
+				"model": "llama3.3:latest",
+				"details": {
+					"parameter_size": "70B",
+					"quantization_level": "Q4_K_M",
+					"family": "llama"
+				}
+			},
+			{
+				"name": "deepseek-r1:latest",
+				"details": {
+					"parameter_size": "7.6B",
+					"quantization_level": "Q4_K_M",
+					"family": "qwen2"
+				}
+			}
+		]
+	}`)
+
+	models := parseOllamaModels(body)
+	if len(models) != 2 {
+		t.Fatalf("expected 2 models, got %d", len(models))
+	}
+	if models[0].id != "llama3.3:latest" {
+		t.Errorf("model[0].id = %q", models[0].id)
+	}
+	if models[0].desc != "70B Q4_K_M" {
+		t.Errorf("model[0].desc = %q", models[0].desc)
+	}
+}
+
+func TestParseLMStudioModels(t *testing.T) {
+	body := []byte(`{
+		"object": "list",
+		"data": [
+			{"id": "meta-llama-3.1-8b", "type": "llm", "arch": "llama", "quantization": "Q4_K_M"},
+			{"id": "nomic-embed", "type": "embeddings", "arch": "nomic-bert", "quantization": "fp16"}
+		]
+	}`)
+
+	models := parseLMStudioModels(body)
+	if len(models) != 1 {
+		t.Fatalf("expected 1 model (embeddings filtered), got %d", len(models))
+	}
+	if models[0].id != "meta-llama-3.1-8b" {
+		t.Errorf("model[0].id = %q", models[0].id)
+	}
+}
+
+func TestParseTogetherModels(t *testing.T) {
+	body := []byte(`[
+		{"id": "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo", "display_name": "Llama 3.1 70B", "type": "chat"},
+		{"id": "togethercomputer/m2-bert-80M-8k-retrieval", "display_name": "M2 BERT", "type": "embedding"},
+		{"id": "black-forest-labs/FLUX.1-schnell", "display_name": "FLUX Schnell", "type": "image"}
+	]`)
+
+	models := parseTogetherModels(body)
+	if len(models) != 1 {
+		t.Fatalf("expected 1 chat model, got %d: %v", len(models), models)
+	}
+	if models[0].id != "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo" {
+		t.Errorf("model[0].id = %q", models[0].id)
+	}
+}
+
+func TestParseOpenRouterModels(t *testing.T) {
+	body := []byte(`{
+		"data": [
+			{
+				"id": "anthropic/claude-sonnet-4-6-20260217",
+				"name": "Claude Sonnet 4.6",
+				"architecture": {"output_modalities": ["text"]},
+				"context_length": 200000
+			},
+			{
+				"id": "openai/dall-e-3",
+				"name": "DALL-E 3",
+				"architecture": {"output_modalities": ["image"]},
+				"context_length": 0
+			}
+		]
+	}`)
+
+	models := parseOpenRouterModels(body)
+	if len(models) != 1 {
+		t.Fatalf("expected 1 text model, got %d", len(models))
+	}
+	if models[0].id != "anthropic/claude-sonnet-4-6-20260217" {
+		t.Errorf("model[0].id = %q", models[0].id)
+	}
+	if !strings.Contains(models[0].desc, "200k") {
+		t.Errorf("desc should contain context length, got %q", models[0].desc)
+	}
+}
+
+func TestParseModelsResponse_InvalidJSON(t *testing.T) {
+	// All parsers should return nil for invalid JSON.
+	for _, provider := range []string{"openai", "claude", "ollama", "lmstudio", "together", "openrouter"} {
+		models := parseModelsResponse(provider, []byte("not json{"))
+		if models != nil {
+			t.Errorf("%s: expected nil for invalid JSON, got %v", provider, models)
+		}
+	}
+}
+
+func TestFetchModelsFromAPI_InvalidProvider(t *testing.T) {
+	models := fetchModelsFromAPI("nonexistent", "", "")
+	if models != nil {
+		t.Error("expected nil for unknown provider")
+	}
+}
+
+func TestFetchModelsFromAPI_CustomNoBaseURL(t *testing.T) {
+	models := fetchModelsFromAPI("custom", "", "")
+	if models != nil {
+		t.Error("expected nil for custom with no base URL")
+	}
+}
+
+func TestParseGroqModels(t *testing.T) {
+	body := []byte(`{
+		"object": "list",
+		"data": [
+			{"id": "llama-3.3-70b-versatile", "object": "model", "owned_by": "Meta", "context_window": 131072},
+			{"id": "whisper-large-v3", "object": "model", "owned_by": "OpenAI", "context_window": 0}
+		]
+	}`)
+
+	models := parseOpenAIModels(body, "groq")
+	if len(models) != 1 {
+		t.Fatalf("expected 1 model (whisper filtered), got %d", len(models))
+	}
+	if models[0].id != "llama-3.3-70b-versatile" {
+		t.Errorf("model[0].id = %q", models[0].id)
+	}
+	if !strings.Contains(models[0].desc, "131k") {
+		t.Errorf("desc should contain context window, got %q", models[0].desc)
 	}
 }
