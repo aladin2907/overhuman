@@ -1,188 +1,191 @@
 # Overhuman
 
-**Self-evolving universal assistant daemon in Go.**
+**AI-ассистент который учится и становится дешевле с каждым запросом.**
 
-Learns from repetition, auto-generates code-skills to replace expensive LLM calls, and continuously improves through 4-level reflection.
-
-```
-Tasks → LLM executes → Reflection → Patterns → Code-skills
-  ↑                                                  ↓
-  └──── Cheaper, faster, more reliable ◄──── Code replaces LLM
-```
-
-## Why
-
-Current AI assistants are reactive chatbots or one-shot code generators. They don't learn between sessions, don't improve over time, and don't reduce costs through automation. Overhuman closes that gap:
-
-- **Memory across sessions** — short-term + long-term + pattern tracking
-- **Self-improvement** — 4 nested reflection loops (micro → meso → macro → mega)
-- **LLM→Code flywheel** — repeated tasks auto-generate deterministic code-skills
-- **Darwinian selection** — skills compete via fitness metrics, A/B testing, auto-deprecation
-- **Multi-channel** — one brain behind CLI, HTTP API, Telegram, Slack, Discord, Email, Webhooks
-- **Fractal agents** — hierarchical sub-agents with own identity, task delegation, competitive execution
-- **Security-first** — prompt injection defense, encrypted credentials, audit trail, skill validation
-
-## Architecture
-
-10-stage pipeline: **Intake → Clarify → Plan → Agent Select → Execute → Review → Memory → Patterns → Reflect → Goals**
+Overhuman — это daemon-процесс, который принимает задачи из любого канала (CLI, HTTP API, Telegram, Slack, Discord, Email), выполняет их через LLM, запоминает результаты и автоматически генерирует код для повторяющихся задач. Со временем дорогие LLM-вызовы заменяются детерминированным кодом — быстрее, дешевле, надёжнее.
 
 ```
-internal/
-├── soul/          # Agent identity (markdown DNA, versioned, immutable anchors)
-├── agent/         # Fractal agent hierarchy (registry, factory, spawn/retire/promote)
-├── pipeline/      # 10-stage orchestrator + DAG executor
-├── brain/         # LLM integration (Claude, OpenAI), model routing, context assembly
-├── senses/        # Input adapters (CLI, HTTP, Telegram, Slack, Discord, Email, Webhook)
-├── instruments/   # Skills (LLM/Code/Hybrid), code generator, Docker sandbox, subagent manager
-├── memory/        # Short-term + Long-term (SQLite FTS5) + Patterns + Shared Knowledge Base
-├── reflection/    # Micro + Meso + Macro + Mega (4-level reflection)
-├── evolution/     # Fitness scoring, A/B testing, deprecation, experimentation (Welch's t-test)
-├── observability/ # Structured logging (slog) + metrics collector (ring buffer, percentiles)
-├── goals/         # Proactive goal engine
-├── budget/        # Cost tracking, daily/monthly limits, model routing by budget
-├── versioning/    # Observation windows, auto-rollback on degradation
-├── mcp/           # MCP client + registry + bridge (JSON-RPC 2.0, industry standard)
-├── storage/       # Persistent KV store (SQLite, WAL, FTS5, TTL)
-├── skills/        # 20 starter skills (dev, file ops, automation, knowledge, stubs)
-└── security/      # Sanitizer, audit, AES-256-GCM encryption, skill validator, policy enforcer
+Задачи → LLM выполняет → Рефлексия → Паттерны → Код-навыки
+  ↑                                                    ↓
+  └──── Дешевле, быстрее, надёжнее ◄──── Код заменяет LLM
 ```
 
-## Quick Start
+## Что умеет
+
+**Универсальный ассистент** — помогает не только с кодом. Маркетинг, планирование, анализ данных, коммуникации, автоматизация рутины.
+
+**Помнит всё** — короткая память (текущий диалог) + долгосрочная (SQLite с полнотекстовым поиском) + отслеживание паттернов. Не нужно повторяться.
+
+**Учится на повторениях** — если ты просишь одно и то же 3 раза, Overhuman автоматически генерирует код-навык и больше не тратит деньги на LLM для этой задачи.
+
+**Работает с любой моделью** — OpenAI, Claude, Ollama (локальные модели), LM Studio, Groq, Together AI, OpenRouter, или любой OpenAI-совместимый endpoint. Переключается одной командой.
+
+**Многоканальный** — один мозг за всеми каналами. Задача приходит из Telegram, ответ уходит в Slack. CLI для разработки, HTTP API для интеграций, Email для автоматизации.
+
+**Всегда включён** — работает как системный сервис. Heartbeat каждые 30 минут для проактивных задач и саморазвития.
+
+**Безопасный** — шифрование ключей (AES-256-GCM), защита от prompt injection, аудит всех действий, валидация навыков, sandbox для кода.
+
+## Быстрый старт
 
 ```bash
-# Build
+# Собрать
 go build -o overhuman ./cmd/overhuman/
 
-# First-time setup — interactive wizard for API keys
+# Настроить (интерактивный визард — выбор провайдера, ввод API ключа)
 ./overhuman configure
 
-# Interactive CLI
+# Запустить в режиме чата
 ./overhuman cli
 
-# Daemon mode (HTTP API on :9090)
+# Или как daemon с HTTP API
 ./overhuman start
 
-# Health check
-./overhuman status
-
-# Diagnose configuration issues
+# Проверить что всё ОК
 ./overhuman doctor
 ```
 
-On first run, `overhuman cli` or `overhuman start` will detect missing configuration and offer to run the setup wizard automatically.
+При первом запуске `overhuman cli` автоматически предложит пройти настройку если ключи не заданы.
 
-### Supported LLM Providers
+## Поддерживаемые LLM
 
-| Provider | API Key Required | Command |
-|----------|-----------------|---------|
-| **OpenAI** | Yes | `overhuman configure` → select OpenAI |
-| **Anthropic Claude** | Yes | `overhuman configure` → select Claude |
-| **Ollama** (local) | No | `overhuman configure` → select Ollama |
-| **LM Studio** (local) | No | `overhuman configure` → select LM Studio |
-| **Groq** | Yes | `overhuman configure` → select Groq |
-| **Together AI** | Yes | `overhuman configure` → select Together |
-| **OpenRouter** | Yes | `overhuman configure` → select OpenRouter |
-| **Custom endpoint** | Optional | Any OpenAI-compatible API |
+| Провайдер | API ключ | Особенности |
+|-----------|----------|-------------|
+| **OpenAI** | Нужен | GPT-4o, GPT-4o-mini |
+| **Anthropic Claude** | Нужен | Claude Sonnet, Haiku, Opus |
+| **Ollama** | Не нужен | Локальные модели — llama3, mistral, и др. Бесплатно |
+| **LM Studio** | Не нужен | Локальные модели через GUI |
+| **Groq** | Нужен | Быстрый inference — Llama, Mixtral |
+| **Together AI** | Нужен | Open-source модели в облаке |
+| **OpenRouter** | Нужен | Доступ ко всем моделям через один ключ |
+| **Custom** | Опционально | Любой OpenAI-совместимый сервер |
 
-Configuration is stored in `~/.overhuman/config.json` (chmod 600). Environment variables override the config file for CI/Docker use.
+Конфиг хранится в `~/.overhuman/config.json` (права 600). Env-переменные перекрывают конфиг — удобно для Docker/CI.
 
-### Environment Variables (optional override)
+## Как это работает
 
-```
-ANTHROPIC_API_KEY   — Claude API key
-OPENAI_API_KEY      — OpenAI API key
-LLM_PROVIDER        — Provider override (openai, claude, ollama, etc.)
-LLM_API_KEY         — API key for any provider
-LLM_MODEL           — Default model override
-LLM_BASE_URL        — Custom API base URL
-OVERHUMAN_DATA      — Data directory (default: ~/.overhuman)
-OVERHUMAN_API_ADDR  — API listen address (default: 127.0.0.1:9090)
-OVERHUMAN_NAME      — Agent name (default: Overhuman)
-```
+### 10-стадийный pipeline
 
-## Key Design Decisions
+Каждый запрос проходит через полный цикл обработки:
 
-| Decision | Choice | Why |
-|----------|--------|-----|
-| Language | **Go** | Daemon-first (goroutines), single binary, <10MB RAM, 100k+ RPS ceiling |
-| Storage | **SQLite + files** | Self-contained, human-readable, git-versionable, FTS5 for search |
-| Dependencies | **2 total** | `google/uuid` + `modernc.org/sqlite` (pure Go). Zero C dependencies |
-| Tool protocol | **MCP** | Industry standard (Anthropic + OpenAI + Google + Microsoft) |
-| Sandbox | **Docker** | Container isolation, --cap-drop=ALL, --read-only, resource limits |
-| Encryption | **AES-256-GCM** | Authenticated encryption for credentials at rest |
+1. **Приём** — нормализация входа из любого канала в единый формат
+2. **Уточнение** — LLM задаёт уточняющие вопросы если нужно
+3. **Планирование** — декомпозиция задачи в подзадачи (DAG)
+4. **Выбор агента** — подбор специализированного субагента
+5. **Выполнение** — параллельное выполнение подзадач
+6. **Ревью** — обязательная проверка качества результата
+7. **Память** — сохранение в короткую и долгосрочную память
+8. **Паттерны** — отслеживание повторяющихся задач
+9. **Рефлексия** — самооценка и корректировка стратегий
+10. **Цели** — обновление проактивных целей
 
-## Features in Detail
+### Самообучение
 
-### LLM→Code Flywheel
-When the agent detects a repeating task pattern (via fingerprinting), it generates a deterministic code-skill to replace the LLM call. Each cycle makes the system cheaper (code vs API call), faster (ms vs seconds), and more reliable (deterministic vs stochastic).
+Overhuman отслеживает повторяющиеся задачи через fingerprinting. Когда паттерн повторяется K раз (по умолчанию 3), система:
 
-### 4-Level Reflection
-| Loop | When | Question | Changes |
-|------|------|----------|---------|
-| **Micro** | Every pipeline step | "Did this step succeed?" | Adjusts next step |
-| **Meso** | After each run | "Was the task solved well?" | Memory, skills, patterns |
-| **Macro** | Every N runs | "Are my strategies adequate?" | Soul, thresholds, goals |
-| **Mega** | Rare / triggered | "Is my reflection process working?" | The reflection process itself |
+1. Генерирует код-навык на основе накопленных примеров
+2. Регистрирует его как детерминированную альтернативу LLM-вызову
+3. При следующем повторении использует код вместо LLM
+4. Если код ломается — автоматический откат на LLM
 
-### Fractal Agents
-Agents form a tree hierarchy. A parent can spawn specialized children (coder, reviewer, researcher), delegate tasks via fan-out or best-of-N competition, and retire/promote children based on performance. Each agent has its own identity (soul), memory, and skill set, while sharing knowledge through the Shared Knowledge Base (SKB).
+Результат: каждый цикл делает систему дешевле (код вместо API), быстрее (мс вместо секунд) и надёжнее (детерминизм вместо стохастики).
 
-### Security Architecture
-- **Prompt injection defense**: 14 regex patterns detecting common attack vectors
-- **Input sanitization**: UTF-8 validation, control character stripping, length limits, blocklists
-- **Credential encryption**: AES-256-GCM with SHA-256 key derivation and random nonces
-- **Skill validation**: Manifests with SHA-256 signatures, resource limits, trusted author lists
-- **Audit trail**: Append-only log with 14 event types and severity levels
-- **Policy enforcement**: Concurrent run limits, forbidden tools, approval gates
-- **Output masking**: Automatic secret detection and masking in pipeline output
+### 4 уровня рефлексии
 
-### 20 Starter Skills
-Fully implemented: Code Execution, Git Management, Testing & QA, File Operations, Data Analysis, Knowledge Base Search, API Integration, Web Search, Scheduled Tasks, Audit & Logging, Credential Management.
+| Уровень | Когда | Что делает |
+|---------|-------|-----------|
+| **Микро** | Каждый шаг pipeline | Корректирует следующий шаг |
+| **Мезо** | После каждой задачи | Обновляет память, навыки, паттерны |
+| **Макро** | Каждые N задач | Пересматривает стратегии и цели |
+| **Мега** | Редко | Оценивает сам процесс рефлексии |
 
-Stubs (need external services): Browser Automation, Database Query, Email Management, Calendar Integration, Messaging, Document Collaboration, PDF Analysis, Data Aggregation, Real-time Monitoring.
+### Фрактальные агенты
 
-## Testing
+Агенты образуют дерево. Родитель создаёт специализированных детей (кодер, ревьюер, исследователь), делегирует задачи, устраивает соревнования (best-of-N) и увольняет/продвигает по результатам. У каждого агента своя идентичность, память и навыки.
+
+## HTTP API
 
 ```bash
-go test ./...         # 586 tests across 19 packages
-go test ./... -v      # Verbose output
-go test ./... -race   # Race condition detection
+# Асинхронный запрос (fire-and-forget)
+curl -X POST http://localhost:9090/input \
+  -H "Content-Type: application/json" \
+  -d '{"payload": "Проанализируй этот CSV файл", "sender": "user1"}'
+
+# Синхронный запрос (ждёт ответа)
+curl -X POST http://localhost:9090/input/sync \
+  -H "Content-Type: application/json" \
+  -d '{"payload": "Переведи на английский: Привет мир"}'
+
+# Проверка здоровья
+curl http://localhost:9090/health
 ```
 
-All tests use mocked LLM responses (`httptest.Server`) and mock transports — no API keys needed to run the test suite. Includes 11 end-to-end integration tests covering the full pipeline flow.
+## Конфигурация
 
-## Project Stats
+Env-переменные (перекрывают config.json):
 
-| Metric | Value |
-|--------|-------|
-| Go files | 100+ |
-| Lines of Go | ~27,000 |
-| Tests | 586 |
-| Packages | 19 |
-| External deps | 3 (`google/uuid`, `modernc.org/sqlite`, `x/term`) |
-| Test coverage | All packages |
+```
+ANTHROPIC_API_KEY   — ключ Claude
+OPENAI_API_KEY      — ключ OpenAI
+LLM_PROVIDER        — провайдер: openai, claude, ollama, groq, together, openrouter, custom
+LLM_API_KEY         — ключ для любого провайдера
+LLM_MODEL           — модель по умолчанию
+LLM_BASE_URL        — URL для custom/ollama
+OVERHUMAN_DATA      — директория данных (по умолчанию ~/.overhuman)
+OVERHUMAN_API_ADDR  — адрес API (по умолчанию 127.0.0.1:9090)
+OVERHUMAN_NAME      — имя агента
+```
 
-## Implementation Status
+## Технические решения
 
-- [x] **Phase 1**: Soul, Agent, Pipeline, Brain, Senses, Memory, Meso-reflection
-- [x] **Phase 2**: Skill system, Code generator, GoalEngine, Budget, Channel adapters
-- [x] **Phase 3**: Evolution engine, Version control, Macro-reflection, DAG executor
-- [x] **Phase 4**: SKB, Mega-reflection, Micro-reflection, Experimentation, Docker sandbox, Observability
-- [x] **Infrastructure**: MCP (JSON-RPC 2.0), Storage (SQLite KV + FTS5)
-- [x] **Starter Skills**: 20 skills (11 full implementations, 9 stubs)
-- [x] **Fractal Agents**: Registry, Factory, SubagentManager, Pipeline integration
-- [x] **Security**: Sanitizer, Audit, Encryption, Validator, Policy Enforcer
-- [x] **Real IMAP/SMTP**: Full email adapter (IMAP4rev1 client + SMTP sender, stdlib only)
-- [x] **Universal Provider**: Any OpenAI-compatible endpoint (Ollama, LM Studio, Groq, Together, OpenRouter, custom)
-- [x] **Interactive Setup**: `overhuman configure` wizard, first-run detection, `overhuman doctor`
-- [x] **E2E Tests**: 11 integration tests covering full pipeline, HTTP API, concurrency, error recovery
+| Решение | Выбор | Почему |
+|---------|-------|--------|
+| Язык | **Go** | Daemon-first, goroutines, single binary 15MB, <10MB RAM |
+| Хранение | **SQLite + файлы** | Self-contained, человекочитаемо, FTS5 для поиска |
+| Зависимости | **3 штуки** | `google/uuid`, `modernc.org/sqlite`, `golang.org/x/term` |
+| Инструменты | **MCP** | Стандарт индустрии (Anthropic + OpenAI + Google + Microsoft) |
+| Sandbox | **Docker** | Изоляция для автогенерированного кода |
+| Шифрование | **AES-256-GCM** | Аутентифицированное шифрование ключей |
 
-## Spec & Docs
+## Структура проекта
 
-- `docs/SPEC.md` — Full conceptual specification (717 lines)
-- `docs/PHASES.md` — Phase-by-phase implementation tracker
-- `docs/ARCHITECTURE.md` — Architecture overview
+```
+cmd/overhuman/       — точка входа (daemon, CLI, configure, doctor)
+internal/
+├── soul/            — идентичность агента (markdown DNA, версионирование)
+├── agent/           — фрактальная иерархия агентов
+├── pipeline/        — 10-стадийный оркестратор + DAG executor
+├── brain/           — LLM интеграция, роутинг моделей, сборка контекста
+├── senses/          — входные каналы (CLI, HTTP, Telegram, Slack, Discord, Email)
+├── instruments/     — система навыков (LLM/Code/Hybrid), генератор кода, Docker sandbox
+├── memory/          — короткая + долгосрочная память + паттерны + общая база знаний
+├── reflection/      — 4 уровня рефлексии
+├── evolution/       — fitness-метрики, A/B тестирование, выбраковка навыков
+├── goals/           — проактивный движок целей
+├── budget/          — контроль расходов, лимиты, роутинг по бюджету
+├── versioning/      — версионирование с автооткатом при деградации
+├── security/        — санитизация, аудит, шифрование, валидация
+├── mcp/             — MCP клиент и реестр (JSON-RPC 2.0)
+├── storage/         — персистентное KV-хранилище (SQLite, FTS5, TTL)
+├── skills/          — 20 стартовых навыков
+└── observability/   — структурированные логи и метрики
+```
 
-## License
+## Тесты
+
+```bash
+go test ./...         # 586 тестов, 19 пакетов
+go test ./... -race   # Проверка на race conditions
+```
+
+Все тесты работают с mock LLM сервером — API ключи для запуска не нужны.
+
+## Документация
+
+- `docs/SPEC.md` — полная спецификация (700+ строк)
+- `docs/PHASES.md` — трекер реализации
+- `docs/ARCHITECTURE.md` — архитектура
+
+## Лицензия
 
 MIT
