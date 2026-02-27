@@ -9,6 +9,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"log"
@@ -16,6 +17,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -57,9 +59,15 @@ func main() {
 	cmd := os.Args[1]
 	switch cmd {
 	case "cli":
+		ensureConfigured()
 		runCLI()
 	case "start":
+		ensureConfigured()
 		runDaemon()
+	case "configure", "config", "setup":
+		runConfigure()
+	case "doctor":
+		runDoctor()
 	case "version":
 		fmt.Printf("%s v%s\n", appName, version)
 	case "status":
@@ -80,12 +88,14 @@ Usage:
   %s <command>
 
 Commands:
+  configure  Interactive setup wizard (API keys, provider, model)
   cli        Interactive CLI mode (stdin/stdout)
   start      Start daemon (HTTP API + heartbeat timer)
   status     Check daemon health (requires running daemon)
+  doctor     Diagnose configuration issues
   version    Print version
 
-Environment variables:
+Environment variables (override config.json):
   ANTHROPIC_API_KEY   Claude API key (auto-detected)
   OPENAI_API_KEY      OpenAI API key (auto-detected)
   OVERHUMAN_DATA      Data directory (default: ~/.overhuman)
@@ -109,28 +119,122 @@ func loadConfig() Config {
 		dataDir = filepath.Join(home, ".overhuman")
 	}
 
-	apiAddr := os.Getenv("OVERHUMAN_API_ADDR")
-	if apiAddr == "" {
-		apiAddr = "127.0.0.1:9090"
-	}
-
-	agentName := os.Getenv("OVERHUMAN_NAME")
-	if agentName == "" {
-		agentName = "Overhuman"
-	}
-
-	return Config{
+	// Defaults.
+	cfg := Config{
 		DataDir:     dataDir,
-		AgentName:   agentName,
-		APIAddr:     apiAddr,
-		ClaudeKey:   os.Getenv("ANTHROPIC_API_KEY"),
-		OpenAIKey:   os.Getenv("OPENAI_API_KEY"),
+		AgentName:   "Overhuman",
+		APIAddr:     "127.0.0.1:9090",
 		DefaultSpec: "general",
-		LLMProvider: os.Getenv("LLM_PROVIDER"),
-		LLMBaseURL:  os.Getenv("LLM_BASE_URL"),
-		LLMModel:    os.Getenv("LLM_MODEL"),
-		LLMAPIKey:   os.Getenv("LLM_API_KEY"),
 	}
+
+	// Layer 1: Load from config.json (persistent settings).
+	if persisted, err := loadPersistedConfig(); err == nil && persisted != nil {
+		if persisted.Provider != "" {
+			cfg.LLMProvider = persisted.Provider
+		}
+		if persisted.APIKey != "" {
+			cfg.LLMAPIKey = persisted.APIKey
+			// Also set provider-specific keys for backward compat.
+			switch persisted.Provider {
+			case "claude", "anthropic":
+				cfg.ClaudeKey = persisted.APIKey
+			case "openai":
+				cfg.OpenAIKey = persisted.APIKey
+			}
+		}
+		if persisted.Model != "" {
+			cfg.LLMModel = persisted.Model
+		}
+		if persisted.BaseURL != "" {
+			cfg.LLMBaseURL = persisted.BaseURL
+		}
+		if persisted.Name != "" {
+			cfg.AgentName = persisted.Name
+		}
+		if persisted.APIAddr != "" {
+			cfg.APIAddr = persisted.APIAddr
+		}
+	}
+
+	// Layer 2: Environment variables override config.json.
+	if v := os.Getenv("OVERHUMAN_API_ADDR"); v != "" {
+		cfg.APIAddr = v
+	}
+	if v := os.Getenv("OVERHUMAN_NAME"); v != "" {
+		cfg.AgentName = v
+	}
+	if v := os.Getenv("ANTHROPIC_API_KEY"); v != "" {
+		cfg.ClaudeKey = v
+	}
+	if v := os.Getenv("OPENAI_API_KEY"); v != "" {
+		cfg.OpenAIKey = v
+	}
+	if v := os.Getenv("LLM_PROVIDER"); v != "" {
+		cfg.LLMProvider = v
+	}
+	if v := os.Getenv("LLM_BASE_URL"); v != "" {
+		cfg.LLMBaseURL = v
+	}
+	if v := os.Getenv("LLM_MODEL"); v != "" {
+		cfg.LLMModel = v
+	}
+	if v := os.Getenv("LLM_API_KEY"); v != "" {
+		cfg.LLMAPIKey = v
+	}
+
+	return cfg
+}
+
+// ensureConfigured checks if the system is configured and guides the user if not.
+func ensureConfigured() {
+	cfg := loadConfig()
+
+	// Check if any provider is configured.
+	hasProvider := cfg.LLMProvider != "" || cfg.ClaudeKey != "" || cfg.OpenAIKey != ""
+	if hasProvider {
+		return
+	}
+
+	// No provider configured — check if config.json exists at all.
+	persisted, _ := loadPersistedConfig()
+	if persisted != nil && persisted.Provider != "" {
+		return // Config exists, provider set.
+	}
+
+	// First run — no config, no env vars.
+	fmt.Printf("\n👋 Welcome to %s v%s!\n\n", appName, version)
+	fmt.Println("  No LLM provider configured. Let's set one up.")
+	fmt.Println()
+	fmt.Println("  Quick options:")
+	fmt.Println("    1) Run the setup wizard:  overhuman configure")
+	fmt.Println("    2) Set an env variable:   export OPENAI_API_KEY=sk-...")
+	fmt.Println("    3) Use a local model:     export LLM_PROVIDER=ollama")
+	fmt.Println()
+
+	// Auto-start wizard if running interactively.
+	if isTerminal() {
+		fmt.Print("  Start setup wizard now? [Y/n]: ")
+		reader := bufio.NewReader(os.Stdin)
+		line, _ := reader.ReadString('\n')
+		line = strings.TrimSpace(strings.ToLower(line))
+		if line == "" || line == "y" || line == "yes" {
+			fmt.Println()
+			runConfigure()
+			return
+		}
+	}
+
+	fmt.Fprintf(os.Stderr, "  Run '%s configure' to set up your API key.\n\n", appName)
+	os.Exit(1)
+}
+
+// isTerminal returns true if stdin is a terminal.
+func isTerminal() bool {
+	fi, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
+	return fi.Mode()&os.ModeCharDevice != 0
 }
 
 // bootstrap initializes all subsystems and returns the pipeline dependencies.

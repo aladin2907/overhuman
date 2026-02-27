@@ -53,6 +53,9 @@ internal/
 # Build
 go build -o overhuman ./cmd/overhuman/
 
+# First-time setup — interactive wizard for API keys
+./overhuman configure
+
 # Interactive CLI
 ./overhuman cli
 
@@ -61,15 +64,40 @@ go build -o overhuman ./cmd/overhuman/
 
 # Health check
 ./overhuman status
+
+# Diagnose configuration issues
+./overhuman doctor
 ```
 
-### Environment Variables
+On first run, `overhuman cli` or `overhuman start` will detect missing configuration and offer to run the setup wizard automatically.
+
+### Supported LLM Providers
+
+| Provider | API Key Required | Command |
+|----------|-----------------|---------|
+| **OpenAI** | Yes | `overhuman configure` → select OpenAI |
+| **Anthropic Claude** | Yes | `overhuman configure` → select Claude |
+| **Ollama** (local) | No | `overhuman configure` → select Ollama |
+| **LM Studio** (local) | No | `overhuman configure` → select LM Studio |
+| **Groq** | Yes | `overhuman configure` → select Groq |
+| **Together AI** | Yes | `overhuman configure` → select Together |
+| **OpenRouter** | Yes | `overhuman configure` → select OpenRouter |
+| **Custom endpoint** | Optional | Any OpenAI-compatible API |
+
+Configuration is stored in `~/.overhuman/config.json` (chmod 600). Environment variables override the config file for CI/Docker use.
+
+### Environment Variables (optional override)
 
 ```
-ANTHROPIC_API_KEY  — Claude API key (primary)
-OPENAI_API_KEY     — OpenAI fallback
-OVERHUMAN_DATA     — Data directory (default: ~/.overhuman)
-OVERHUMAN_API_ADDR — API listen address (default: 127.0.0.1:9090)
+ANTHROPIC_API_KEY   — Claude API key
+OPENAI_API_KEY      — OpenAI API key
+LLM_PROVIDER        — Provider override (openai, claude, ollama, etc.)
+LLM_API_KEY         — API key for any provider
+LLM_MODEL           — Default model override
+LLM_BASE_URL        — Custom API base URL
+OVERHUMAN_DATA      — Data directory (default: ~/.overhuman)
+OVERHUMAN_API_ADDR  — API listen address (default: 127.0.0.1:9090)
+OVERHUMAN_NAME      — Agent name (default: Overhuman)
 ```
 
 ## Key Design Decisions
@@ -116,22 +144,22 @@ Stubs (need external services): Browser Automation, Database Query, Email Manage
 ## Testing
 
 ```bash
-go test ./...         # 551 tests across 18 packages
+go test ./...         # 586 tests across 19 packages
 go test ./... -v      # Verbose output
 go test ./... -race   # Race condition detection
 ```
 
-All tests use mocked LLM responses (`httptest.Server`) and mock transports — no API keys needed to run the test suite.
+All tests use mocked LLM responses (`httptest.Server`) and mock transports — no API keys needed to run the test suite. Includes 11 end-to-end integration tests covering the full pipeline flow.
 
 ## Project Stats
 
 | Metric | Value |
 |--------|-------|
-| Go files | 96 |
-| Lines of Go | ~25,000 |
-| Tests | 551 |
-| Packages | 18 |
-| External deps | 2 |
+| Go files | 100+ |
+| Lines of Go | ~27,000 |
+| Tests | 586 |
+| Packages | 19 |
+| External deps | 3 (`google/uuid`, `modernc.org/sqlite`, `x/term`) |
 | Test coverage | All packages |
 
 ## Implementation Status
@@ -145,12 +173,15 @@ All tests use mocked LLM responses (`httptest.Server`) and mock transports — n
 - [x] **Fractal Agents**: Registry, Factory, SubagentManager, Pipeline integration
 - [x] **Security**: Sanitizer, Audit, Encryption, Validator, Policy Enforcer
 - [x] **Real IMAP/SMTP**: Full email adapter (IMAP4rev1 client + SMTP sender, stdlib only)
+- [x] **Universal Provider**: Any OpenAI-compatible endpoint (Ollama, LM Studio, Groq, Together, OpenRouter, custom)
+- [x] **Interactive Setup**: `overhuman configure` wizard, first-run detection, `overhuman doctor`
+- [x] **E2E Tests**: 11 integration tests covering full pipeline, HTTP API, concurrency, error recovery
 
 ## Spec & Docs
 
 - `docs/SPEC.md` — Full conceptual specification (717 lines)
 - `docs/PHASES.md` — Phase-by-phase implementation tracker
-- `CLAUDE.md` — Project guide for Claude Code
+- `docs/ARCHITECTURE.md` — Architecture overview
 
 ## License
 
