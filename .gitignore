@@ -1,5 +1,5 @@
-# Binary
-overhuman
+# Binary (root only, not cmd/overhuman/ directory)
+/overhuman
 *.exe
 
 # IDE & tools

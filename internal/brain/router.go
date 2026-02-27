@@ -19,7 +19,8 @@ type ModelEntry struct {
 
 // ModelRouter selects the best model based on task complexity and remaining budget.
 type ModelRouter struct {
-	models []ModelEntry
+	models   []ModelEntry
+	provider string // Active provider filter ("claude", "openai", or "" for any)
 }
 
 // NewModelRouter creates a router with default model entries.
@@ -31,6 +32,7 @@ func NewModelRouter() *ModelRouter {
 			{ID: "claude-sonnet-4-20250514", Provider: "claude", Tier: TierMid, CostPer1K: 0.009},
 			{ID: "gpt-4o", Provider: "openai", Tier: TierMid, CostPer1K: 0.00625},
 			{ID: "claude-opus-4-20250514", Provider: "claude", Tier: TierPowerful, CostPer1K: 0.045},
+			{ID: "gpt-4.1", Provider: "openai", Tier: TierPowerful, CostPer1K: 0.030},
 		},
 	}
 }
@@ -40,9 +42,21 @@ func NewModelRouterWithModels(models []ModelEntry) *ModelRouter {
 	return &ModelRouter{models: models}
 }
 
+// SetProvider sets the active provider filter. Only models from this provider
+// will be returned by Select. Pass "" to disable filtering.
+func (r *ModelRouter) SetProvider(provider string) {
+	r.provider = provider
+}
+
+// Provider returns the current provider filter.
+func (r *ModelRouter) Provider() string {
+	return r.provider
+}
+
 // Select picks the best model based on complexity and remaining budget.
 // complexity should be one of: "simple", "moderate", "complex".
 // budgetRemaining is in USD.
+// If a provider filter is set, only models from that provider are considered.
 func (r *ModelRouter) Select(complexity string, budgetRemaining float64) string {
 	targetTier := complexityToTier(complexity)
 
@@ -54,9 +68,9 @@ func (r *ModelRouter) Select(complexity string, budgetRemaining float64) string 
 		targetTier = TierMid
 	}
 
-	// Find the first model matching the target tier.
+	// Find the first model matching the target tier and provider.
 	for _, m := range r.models {
-		if m.Tier == targetTier {
+		if r.matchesProvider(m) && m.Tier == targetTier {
 			return m.ID
 		}
 	}
@@ -65,17 +79,29 @@ func (r *ModelRouter) Select(complexity string, budgetRemaining float64) string 
 	fallbackOrder := tierFallback(targetTier)
 	for _, tier := range fallbackOrder {
 		for _, m := range r.models {
-			if m.Tier == tier {
+			if r.matchesProvider(m) && m.Tier == tier {
 				return m.ID
 			}
 		}
 	}
 
-	// Absolute fallback: return first available model.
+	// Absolute fallback: return first available model matching provider.
+	for _, m := range r.models {
+		if r.matchesProvider(m) {
+			return m.ID
+		}
+	}
+
+	// Last resort: return first model regardless of provider.
 	if len(r.models) > 0 {
 		return r.models[0].ID
 	}
 	return ""
+}
+
+// matchesProvider checks if a model matches the active provider filter.
+func (r *ModelRouter) matchesProvider(m ModelEntry) bool {
+	return r.provider == "" || m.Provider == r.provider
 }
 
 // complexityToTier maps a complexity string to a model tier.
