@@ -602,8 +602,30 @@ func runDaemon() {
 		}
 	}()
 
-	// Register UI API routes on a separate mux (shares API port via api sense).
-	_ = uiAPIHandler // routes available via /api/ui/* when api sense adds them
+	// Kiosk web server on derived port (API port + 2).
+	kioskAddr := deriveKioskAddr(cfg.APIAddr)
+	kioskCfg := genui.KioskConfig{
+		WSAddr:        wsAddr,
+		Title:         cfg.AgentName,
+		DarkMode:      true,
+		ShowSidebar:   true,
+		EmergencyStop: true,
+	}
+	kioskHandler := genui.NewKioskHandler(kioskCfg)
+	kioskMux := http.NewServeMux()
+	kioskHandler.RegisterRoutes(kioskMux)
+	uiAPIHandler.RegisterRoutes(kioskMux)
+
+	kioskServer := &http.Server{
+		Addr:    kioskAddr,
+		Handler: kioskMux,
+	}
+	go func() {
+		log.Printf("[daemon] Kiosk UI on http://%s", kioskAddr)
+		if err := kioskServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Printf("[daemon] kiosk error: %v", err)
+		}
+	}()
 
 	// Heartbeat timer (every 30 minutes).
 	heartbeatTicker := time.NewTicker(30 * time.Minute)
@@ -626,7 +648,7 @@ func runDaemon() {
 		}
 	}()
 
-	log.Printf("[daemon] %s v%s started (API=%s, WS=%s)", cfg.AgentName, version, cfg.APIAddr, wsAddr)
+	log.Printf("[daemon] %s v%s started (API=%s, WS=%s, Kiosk=http://%s)", cfg.AgentName, version, cfg.APIAddr, wsAddr, kioskAddr)
 
 	// Main processing loop.
 	go func() {
@@ -696,6 +718,11 @@ func runDaemon() {
 	cancel()
 
 	// Graceful shutdown.
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+	if err := kioskServer.Shutdown(shutdownCtx); err != nil {
+		log.Printf("[daemon] kiosk shutdown error: %v", err)
+	}
 	wsSrv.Stop()
 	api.Stop()
 	deps.LongTerm.Close()
@@ -711,6 +738,17 @@ func deriveWSAddr(apiAddr string) string {
 	var port int
 	fmt.Sscanf(portStr, "%d", &port)
 	return net.JoinHostPort(host, fmt.Sprintf("%d", port+1))
+}
+
+// deriveKioskAddr increments the port from the API address by 2 for the kiosk HTTP server.
+func deriveKioskAddr(apiAddr string) string {
+	host, portStr, err := net.SplitHostPort(apiAddr)
+	if err != nil {
+		return "127.0.0.1:9092"
+	}
+	var port int
+	fmt.Sscanf(portStr, "%d", &port)
+	return net.JoinHostPort(host, fmt.Sprintf("%d", port+2))
 }
 
 // runStatus checks if the daemon is running by hitting the health endpoint.

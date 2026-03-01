@@ -228,16 +228,23 @@
 
 **93 new tests** (191 total in `internal/genui/`), zero external dependencies (RFC 6455 WebSocket in pure stdlib)
 
-### Phase 5C: Tablet Kiosk App
+### Phase 5C: Tablet Kiosk App ✅ COMPLETE
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| App shell (kiosk mode) | ⏳ | WebView-based, fullscreen |
-| WS client + reconnect | ⏳ | Auto-reconnect с retry |
-| WebView sandbox | ⏳ | Sandboxed HTML rendering |
-| Action bridge (postMessage → WS) | ⏳ | |
-| Canvas layout + Dynamic Expand | ⏳ | |
-| Offline cache (last UI) | ⏳ | |
+| Component | Package | Status | Tests |
+|-----------|---------|--------|-------|
+| Kiosk handler (Go HTTP server) | `internal/genui/kiosk.go` | ✅ | ✅ |
+| Kiosk SPA (947-line embedded HTML/JS) | `internal/genui/kiosk_html.go` | ✅ | ✅ |
+| WS client + auto-reconnect | kiosk_html.go (JS) | ✅ | ✅ |
+| Sandbox iframe (CSP, allow-scripts) | kiosk_html.go (JS) | ✅ | ✅ |
+| Action bridge (postMessage → WS) | kiosk_html.go (JS) | ✅ | ✅ |
+| Canvas layout (sidebar + responsive) | kiosk_html.go (CSS) | ✅ | ✅ |
+| Offline cache (localStorage) | kiosk_html.go (JS) | ✅ | ✅ |
+| UI Feedback collection | kiosk_html.go (JS) | ✅ | ✅ |
+| Emergency stop button | kiosk_html.go (JS) | ✅ | ✅ |
+| Touch optimizations (44px targets) | kiosk_html.go (CSS) | ✅ | ✅ |
+| Daemon kiosk integration | `cmd/overhuman/main.go` | ✅ | ✅ |
+
+**33 new tests** in `kiosk_test.go`, daemon serves kiosk on port API+2 (default: 9092)
 
 ### Phase 5D: UI Evolution — Self-Improvement
 
@@ -254,8 +261,8 @@
 
 | Metric | Value |
 |--------|-------|
-| Total Go files | ~129 |
-| Total lines of Go | ~35,500 |
-| Total tests | 793 |
+| Total Go files | ~132 |
+| Total lines of Go | ~37,000 |
+| Total tests | 826 |
 | Packages with tests | 20/20 |
 | External dependencies | 2 (uuid, sqlite) |
