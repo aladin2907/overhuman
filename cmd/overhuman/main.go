@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/overhuman/overhuman/internal/brain"
+	"github.com/overhuman/overhuman/internal/deploy"
 	"github.com/overhuman/overhuman/internal/genui"
 	"github.com/overhuman/overhuman/internal/memory"
 	"github.com/overhuman/overhuman/internal/pipeline"
@@ -72,6 +73,16 @@ func main() {
 		runDoctor()
 	case "version":
 		fmt.Printf("%s v%s\n", appName, version)
+	case "install":
+		runInstall()
+	case "uninstall":
+		runUninstall()
+	case "stop":
+		runStop()
+	case "update":
+		runUpdate()
+	case "logs":
+		runLogs()
 	case "status":
 		runStatus()
 	case "help", "--help", "-h":
@@ -93,7 +104,12 @@ Commands:
   configure  Interactive setup wizard (API keys, provider, model)
   cli        Interactive CLI mode (stdin/stdout)
   start      Start daemon (HTTP API + heartbeat timer)
+  stop       Stop the running daemon (sends SIGTERM)
   status     Check daemon health (requires running daemon)
+  install    Install as an OS service (launchd/systemd)
+  uninstall  Remove the OS service
+  update     Check for and apply updates
+  logs       Tail the daemon log file
   doctor     Diagnose configuration issues
   version    Print version
 
@@ -522,6 +538,14 @@ func runCLI() {
 // runDaemon starts the full daemon with HTTP API, WebSocket UI server, and heartbeat timer.
 func runDaemon() {
 	cfg := loadConfig()
+
+	// PID file — ensures single instance and enables `stop` command.
+	pf := deploy.NewPIDFile(cfg.DataDir)
+	if err := pf.Guard(); err != nil {
+		log.Fatalf("[daemon] %v", err)
+	}
+	defer pf.Remove()
+
 	deps, _, uiGen, err := bootstrap(cfg)
 	if err != nil {
 		log.Fatalf("[daemon] bootstrap: %v", err)
@@ -769,5 +793,131 @@ func runStatus() {
 	} else {
 		fmt.Printf("daemon returned status %d\n", resp.StatusCode)
 		os.Exit(1)
+	}
+}
+
+// runInstall installs overhuman as an OS service.
+func runInstall() {
+	cfg := loadConfig()
+
+	// Find the binary path.
+	binPath, err := os.Executable()
+	if err != nil {
+		log.Fatalf("[install] cannot determine binary path: %v", err)
+	}
+
+	svcCfg := deploy.ServiceConfig{
+		BinaryPath: binPath,
+		DataDir:    cfg.DataDir,
+		APIAddr:    cfg.APIAddr,
+		AgentName:  cfg.AgentName,
+	}
+
+	result, err := deploy.Install(svcCfg)
+	if err != nil {
+		log.Fatalf("[install] %v", err)
+	}
+
+	fmt.Println(result.Instructions)
+}
+
+// runUninstall removes the OS service.
+func runUninstall() {
+	result, err := deploy.Uninstall()
+	if err != nil {
+		log.Fatalf("[uninstall] %v", err)
+	}
+	fmt.Println(result.Instructions)
+}
+
+// runStop sends SIGTERM to the running daemon.
+func runStop() {
+	cfg := loadConfig()
+	if err := deploy.StopDaemon(cfg.DataDir); err != nil {
+		fmt.Fprintf(os.Stderr, "stop: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println("daemon stopped")
+}
+
+// runUpdate checks for and applies updates.
+func runUpdate() {
+	cfg := loadConfig()
+
+	binPath, err := os.Executable()
+	if err != nil {
+		log.Fatalf("[update] cannot determine binary path: %v", err)
+	}
+
+	ucfg := deploy.UpdateConfig{
+		CurrentVersion: version,
+		DataDir:        cfg.DataDir,
+		BinaryPath:     binPath,
+	}
+
+	fmt.Println("Checking for updates...")
+	info, err := deploy.CheckUpdate(ucfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "update check failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	if info == nil {
+		fmt.Printf("Already up to date (v%s)\n", version)
+		return
+	}
+
+	fmt.Printf("New version available: v%s (current: v%s)\n", info.Version, version)
+	if info.ReleaseNotes != "" {
+		fmt.Printf("Release notes:\n%s\n\n", info.ReleaseNotes)
+	}
+
+	fmt.Print("Apply update? [y/N]: ")
+	var answer string
+	fmt.Scanln(&answer)
+	if answer != "y" && answer != "Y" && answer != "yes" {
+		fmt.Println("Update cancelled.")
+		return
+	}
+
+	result, err := deploy.ApplyUpdate(ucfg, info)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "update failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println(result.Message)
+	if result.NeedsRestart {
+		fmt.Println("Please restart the daemon to use the new version.")
+	}
+}
+
+// runLogs tails the daemon log file.
+func runLogs() {
+	cfg := loadConfig()
+	logPath := filepath.Join(cfg.DataDir, "logs", "overhuman.log")
+
+	if _, err := os.Stat(logPath); os.IsNotExist(err) {
+		fmt.Fprintf(os.Stderr, "no log file found at %s\n", logPath)
+		fmt.Fprintf(os.Stderr, "hint: the daemon writes logs to stdout by default.\n")
+		fmt.Fprintf(os.Stderr, "      install as a service with 'overhuman install' for file logging.\n")
+		os.Exit(1)
+	}
+
+	// Read and print last 50 lines.
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		log.Fatalf("[logs] read: %v", err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	start := len(lines) - 50
+	if start < 0 {
+		start = 0
+	}
+	for _, line := range lines[start:] {
+		if line != "" {
+			fmt.Println(line)
+		}
 	}
 }

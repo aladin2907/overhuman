@@ -259,12 +259,41 @@
 
 ---
 
+## Phase 6: Deployment ✅ COMPLETE
+
+> Spec: [SPEC.md §15](./SPEC.md)
+
+**Goal:** Production-ready deployment: OS service, PID management, auto-update, file watcher
+
+| Component | Package | Status | Tests |
+|-----------|---------|--------|-------|
+| PID file management (single instance) | `internal/deploy/pidfile.go` | ✅ | ✅ |
+| launchd plist (macOS) | `internal/deploy/service.go` | ✅ | ✅ |
+| systemd unit (Linux) | `internal/deploy/service.go` | ✅ | ✅ |
+| Auto-update (SHA256, backup, atomic swap, rollback) | `internal/deploy/update.go` | ✅ | ✅ |
+| File watcher sense (FS polling) | `internal/senses/filewatcher.go` | ✅ | ✅ |
+| CLI commands: install, uninstall, stop, update, logs | `cmd/overhuman/main.go` | ✅ | ✅ |
+| Daemon PID guard (single instance enforcement) | `cmd/overhuman/main.go` | ✅ | ✅ |
+
+**53 new tests** (40 deploy + 13 filewatcher), new package `internal/deploy/`
+
+**CLI commands:**
+```
+overhuman install    — Install as OS service (launchd/systemd)
+overhuman uninstall  — Remove OS service
+overhuman stop       — Send SIGTERM to running daemon
+overhuman update     — Check & apply updates (SHA256 verified)
+overhuman logs       — View last 50 lines of daemon log
+```
+
+---
+
 ## Statistics
 
 | Metric | Value |
 |--------|-------|
-| Total Go files | ~140 |
-| Total lines of Go | ~39,600 |
-| Total tests | 893 |
-| Packages with tests | 20/20 |
+| Total Go files | ~148 |
+| Total lines of Go | ~41,800 |
+| Total tests | 946 |
+| Packages with tests | 21/21 |
 | External dependencies | 2 (uuid, sqlite) |
