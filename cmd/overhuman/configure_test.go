@@ -263,52 +263,143 @@ func TestParseOpenAIModels(t *testing.T) {
 	body := []byte(`{
 		"object": "list",
 		"data": [
-			{"id": "o4-mini", "object": "model", "owned_by": "openai"},
-			{"id": "o3", "object": "model", "owned_by": "openai"},
-			{"id": "text-embedding-3-small", "object": "model", "owned_by": "openai"},
-			{"id": "whisper-1", "object": "model", "owned_by": "openai"},
-			{"id": "tts-1", "object": "model", "owned_by": "openai"},
-			{"id": "dall-e-3", "object": "model", "owned_by": "openai"},
-			{"id": "gpt-4.1", "object": "model", "owned_by": "openai"}
+			{"id": "o4-mini", "object": "model", "owned_by": "openai", "created": 1700000003},
+			{"id": "o3", "object": "model", "owned_by": "openai", "created": 1700000002},
+			{"id": "text-embedding-3-small", "object": "model", "owned_by": "openai", "created": 1700000001},
+			{"id": "whisper-1", "object": "model", "owned_by": "openai", "created": 1600000000},
+			{"id": "tts-1", "object": "model", "owned_by": "openai", "created": 1600000000},
+			{"id": "dall-e-3", "object": "model", "owned_by": "openai", "created": 1600000000},
+			{"id": "gpt-4.1", "object": "model", "owned_by": "openai", "created": 1700000001},
+			{"id": "gpt-3.5-turbo", "object": "model", "owned_by": "openai", "created": 1500000000},
+			{"id": "gpt-4-0314", "object": "model", "owned_by": "openai", "created": 1500000000},
+			{"id": "gpt-4-turbo-preview", "object": "model", "owned_by": "openai", "created": 1500000000},
+			{"id": "gpt-4", "object": "model", "owned_by": "openai", "created": 1500000000},
+			{"id": "ft:gpt-4o:my-org:custom:id", "object": "model", "owned_by": "openai", "created": 1500000000},
+			{"id": "chatgpt-4o-latest", "object": "model", "owned_by": "openai", "created": 1500000000},
+			{"id": "gpt-4o-realtime-preview", "object": "model", "owned_by": "openai", "created": 1500000000},
+			{"id": "gpt-4o-audio-preview", "object": "model", "owned_by": "openai", "created": 1500000000},
+			{"id": "sora-2", "object": "model", "owned_by": "openai", "created": 1500000000},
+			{"id": "gpt-image-1", "object": "model", "owned_by": "openai", "created": 1500000000},
+			{"id": "gpt-4o-mini-tts", "object": "model", "owned_by": "openai", "created": 1500000000},
+			{"id": "gpt-5-chat-latest", "object": "model", "owned_by": "openai", "created": 1500000000},
+			{"id": "o3-deep-research", "object": "model", "owned_by": "openai", "created": 1500000000},
+			{"id": "gpt-5-search-api", "object": "model", "owned_by": "openai", "created": 1500000000},
+			{"id": "gpt-5-2025-08-07", "object": "model", "owned_by": "openai", "created": 1500000000},
+			{"id": "gpt-4o", "object": "model", "owned_by": "openai", "created": 1500000000},
+			{"id": "gpt-4o-mini", "object": "model", "owned_by": "openai", "created": 1500000000},
+			{"id": "gpt-4o-2024-11-20", "object": "model", "owned_by": "openai", "created": 1500000000}
 		]
 	}`)
 
 	models := parseOpenAIModels(body, "openai")
 	if len(models) != 3 {
-		t.Fatalf("expected 3 chat models, got %d: %v", len(models), models)
+		t.Fatalf("expected 3 current models, got %d: %v", len(models), modelIDs(models))
 	}
 
-	// Should have filtered out embedding, whisper, tts, dall-e.
 	ids := map[string]bool{}
 	for _, m := range models {
 		ids[m.id] = true
 	}
-	if ids["text-embedding-3-small"] || ids["whisper-1"] || ids["tts-1"] || ids["dall-e-3"] {
-		t.Error("should have filtered non-chat models")
-	}
+
+	// Must have current models.
 	if !ids["o4-mini"] || !ids["o3"] || !ids["gpt-4.1"] {
-		t.Error("missing expected chat models")
+		t.Error("missing expected current models")
 	}
+
+	// Must NOT have old/deprecated/non-chat models.
+	for _, bad := range []string{
+		"text-embedding-3-small", "whisper-1", "tts-1", "dall-e-3",
+		"gpt-3.5-turbo", "gpt-4-0314", "gpt-4-turbo-preview", "gpt-4",
+		"ft:gpt-4o:my-org:custom:id", "chatgpt-4o-latest",
+		"gpt-4o-realtime-preview", "gpt-4o-audio-preview",
+		"sora-2", "gpt-image-1", "gpt-4o-mini-tts",
+		"gpt-5-chat-latest", "o3-deep-research", "gpt-5-search-api",
+		"gpt-5-2025-08-07", "gpt-4o", "gpt-4o-mini", "gpt-4o-2024-11-20",
+	} {
+		if ids[bad] {
+			t.Errorf("should have filtered %q", bad)
+		}
+	}
+
+	// Sorted newest-first.
+	if models[0].id != "o4-mini" {
+		t.Errorf("expected newest model first, got %q", models[0].id)
+	}
+}
+
+func TestParseOpenAIModels_SortNewestFirst(t *testing.T) {
+	body := []byte(`{
+		"data": [
+			{"id": "gpt-4.1-nano", "created": 1000},
+			{"id": "gpt-4.1", "created": 2000},
+			{"id": "o3", "created": 3000}
+		]
+	}`)
+	models := parseOpenAIModels(body, "openai")
+	if len(models) != 3 {
+		t.Fatalf("expected 3, got %d", len(models))
+	}
+	if models[0].id != "o3" || models[1].id != "gpt-4.1" || models[2].id != "gpt-4.1-nano" {
+		t.Errorf("wrong order: %v", modelIDs(models))
+	}
+}
+
+func TestIsDateStamped(t *testing.T) {
+	yes := []string{"gpt-5-2025-08-07", "o3-2025-04-16", "gpt-5.2-pro-2025-12-11"}
+	no := []string{"gpt-5", "o3", "o3-mini", "gpt-4.1-nano", "gpt-4.1-mini", "o1-pro"}
+	for _, id := range yes {
+		if !isDateStamped(id) {
+			t.Errorf("expected date-stamped: %q", id)
+		}
+	}
+	for _, id := range no {
+		if isDateStamped(id) {
+			t.Errorf("should NOT be date-stamped: %q", id)
+		}
+	}
+}
+
+func modelIDs(models []modelOption) []string {
+	ids := make([]string, len(models))
+	for i, m := range models {
+		ids[i] = m.id
+	}
+	return ids
 }
 
 func TestParseAnthropicModels(t *testing.T) {
 	body := []byte(`{
 		"data": [
 			{"id": "claude-sonnet-4-6-20260217", "display_name": "Claude Sonnet 4.6", "type": "model"},
-			{"id": "claude-opus-4-6-20260205", "display_name": "Claude Opus 4.6", "type": "model"}
+			{"id": "claude-opus-4-6-20260205", "display_name": "Claude Opus 4.6", "type": "model"},
+			{"id": "claude-2.1", "display_name": "Claude 2.1", "type": "model"},
+			{"id": "claude-2.0", "display_name": "Claude 2.0", "type": "model"},
+			{"id": "claude-instant-1.2", "display_name": "Claude Instant 1.2", "type": "model"},
+			{"id": "claude-1.3", "display_name": "Claude 1.3", "type": "model"}
 		],
 		"has_more": false
 	}`)
 
 	models := parseAnthropicModels(body)
 	if len(models) != 2 {
-		t.Fatalf("expected 2 models, got %d", len(models))
+		t.Fatalf("expected 2 current models, got %d: %v", len(models), modelIDs(models))
 	}
 	if models[0].id != "claude-sonnet-4-6-20260217" {
 		t.Errorf("model[0].id = %q", models[0].id)
 	}
 	if models[0].desc != "Claude Sonnet 4.6" {
 		t.Errorf("model[0].desc = %q", models[0].desc)
+	}
+
+	// Verify old models filtered out.
+	ids := map[string]bool{}
+	for _, m := range models {
+		ids[m.id] = true
+	}
+	for _, old := range []string{"claude-2.1", "claude-2.0", "claude-instant-1.2", "claude-1.3"} {
+		if ids[old] {
+			t.Errorf("should have filtered old model %q", old)
+		}
 	}
 }
 
@@ -439,19 +530,25 @@ func TestParseGroqModels(t *testing.T) {
 	body := []byte(`{
 		"object": "list",
 		"data": [
-			{"id": "llama-3.3-70b-versatile", "object": "model", "owned_by": "Meta", "context_window": 131072},
-			{"id": "whisper-large-v3", "object": "model", "owned_by": "OpenAI", "context_window": 0}
+			{"id": "llama-3.3-70b-versatile", "object": "model", "owned_by": "Meta", "context_window": 131072, "created": 2000},
+			{"id": "whisper-large-v3", "object": "model", "owned_by": "OpenAI", "context_window": 0, "created": 1000},
+			{"id": "qwen-qwq-32b", "object": "model", "owned_by": "Qwen", "context_window": 131072, "created": 3000}
 		]
 	}`)
 
 	models := parseOpenAIModels(body, "groq")
-	if len(models) != 1 {
-		t.Fatalf("expected 1 model (whisper filtered), got %d", len(models))
+	if len(models) != 2 {
+		t.Fatalf("expected 2 models (whisper filtered), got %d: %v", len(models), modelIDs(models))
 	}
-	if models[0].id != "llama-3.3-70b-versatile" {
-		t.Errorf("model[0].id = %q", models[0].id)
+	// Newest first.
+	if models[0].id != "qwen-qwq-32b" {
+		t.Errorf("expected newest first, got %q", models[0].id)
 	}
 	if !strings.Contains(models[0].desc, "131k") {
 		t.Errorf("desc should contain context window, got %q", models[0].desc)
+	}
+	// Groq owned_by should show (not filtered like openai).
+	if !strings.Contains(models[0].desc, "Qwen") {
+		t.Errorf("desc should contain owner for Groq, got %q", models[0].desc)
 	}
 }

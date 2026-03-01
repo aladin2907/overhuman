@@ -174,7 +174,11 @@ func (p *UniversalProvider) Complete(ctx context.Context, req LLMRequest) (*LLMR
 		or.Temperature = &t
 	}
 	if maxTokens > 0 {
-		or.MaxTokens = &maxTokens
+		if useMaxCompletionTokens(model) {
+			or.MaxCompletionTokens = &maxTokens
+		} else {
+			or.MaxTokens = &maxTokens
+		}
 	}
 
 	for _, tool := range req.Tools {

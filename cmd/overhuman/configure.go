@@ -100,45 +100,41 @@ func runConfigure() {
 	}
 
 	// Step 1: Choose provider.
-	fmt.Println("Select your LLM provider:")
+	fmt.Println("Select your LLM provider (↑↓ to move, Enter to select):")
 	fmt.Println()
-	providers := []struct {
+
+	type providerEntry struct {
 		key  string
 		name string
 		desc string
-	}{
-		{"openai", "OpenAI", "o3, o4-mini, GPT-4.1 (requires API key)"},
-		{"claude", "Anthropic Claude", "Claude Sonnet 4.6, Opus 4.6, Haiku (requires API key)"},
-		{"ollama", "Ollama", "Local models — llama3, qwen, deepseek, etc. (free, no API key)"},
-		{"lmstudio", "LM Studio", "Local models via LM Studio (free, no API key)"},
-		{"groq", "Groq", "Fast inference — Llama, Qwen, DeepSeek (requires API key)"},
-		{"together", "Together AI", "Open-source models hosted (requires API key)"},
-		{"openrouter", "OpenRouter", "Multi-model gateway (requires API key)"},
+	}
+	providers := []providerEntry{
+		{"openai", "OpenAI", "Requires API key"},
+		{"claude", "Anthropic Claude", "Requires API key"},
+		{"ollama", "Ollama", "Local models, free, no API key"},
+		{"lmstudio", "LM Studio", "Local models via GUI, free"},
+		{"groq", "Groq", "Fast cloud inference, requires API key"},
+		{"together", "Together AI", "Open-source models hosted, requires API key"},
+		{"openrouter", "OpenRouter", "Multi-provider gateway, requires API key"},
 		{"custom", "Custom endpoint", "Any OpenAI-compatible API"},
 	}
 
+	providerItems := make([]selectItem, len(providers))
+	defaultProviderIdx := 0
 	for i, p := range providers {
-		marker := "  "
+		providerItems[i] = selectItem{label: p.name, desc: p.desc}
 		if existing.Provider == p.key {
-			marker = "→ "
-		}
-		fmt.Printf("  %s%d) %-20s %s\n", marker, i+1, p.name, p.desc)
-	}
-	fmt.Println()
-
-	defaultChoice := ""
-	if existing.Provider != "" {
-		for i, p := range providers {
-			if p.key == existing.Provider {
-				defaultChoice = fmt.Sprintf("%d", i+1)
-				break
-			}
+			defaultProviderIdx = i
 		}
 	}
 
-	provider := promptChoice(reader, "Choose provider", defaultChoice, len(providers))
-	selectedProvider := providers[provider-1]
-	fmt.Printf("\n  ✓ Selected: %s\n\n", selectedProvider.name)
+	providerIdx := interactiveSelect(providerItems, defaultProviderIdx)
+	if providerIdx < 0 {
+		fmt.Println("  Cancelled.")
+		return
+	}
+	selectedProvider := providers[providerIdx]
+	fmt.Printf("  ✓ %s\n\n", selectedProvider.name)
 
 	cfg := &persistedConfig{
 		Provider: selectedProvider.key,
@@ -202,50 +198,38 @@ func runConfigure() {
 	models := fetchModelsFromAPI(selectedProvider.key, cfg.APIKey, cfg.BaseURL)
 	if len(models) > 0 {
 		fmt.Printf("OK, %d models available\n\n", len(models))
+		fmt.Println("Select default model (↑↓ to move, Enter to select):")
+		fmt.Println()
+
+		// Build select items. Last item = "Other (type manually)".
+		modelItems := make([]selectItem, len(models)+1)
+		defaultModelIdx := 0
+		for i, m := range models {
+			modelItems[i] = selectItem{label: m.id, desc: m.desc}
+			if existing.Model == m.id {
+				defaultModelIdx = i
+			}
+		}
+		modelItems[len(models)] = selectItem{label: "Other...", desc: "enter model name manually"}
+
+		modelIdx := interactiveSelect(modelItems, defaultModelIdx)
+		if modelIdx < 0 {
+			fmt.Println("  Cancelled.")
+			return
+		}
+
+		if modelIdx == len(models) {
+			// "Other" — free input.
+			model := promptString(reader, "Model name", "")
+			cfg.Model = model
+		} else {
+			cfg.Model = models[modelIdx].id
+		}
+		fmt.Printf("  ✓ Model: %s\n\n", cfg.Model)
 	} else {
 		fmt.Println("could not reach provider")
 		fmt.Println("  Check your API key and network connection.")
 		fmt.Println()
-	}
-
-	if len(models) > 0 {
-		fmt.Println("Select default model:")
-		fmt.Println()
-
-		defaultModelIdx := ""
-		for i, m := range models {
-			marker := "  "
-			if existing.Model == m.id {
-				marker = "→ "
-				defaultModelIdx = fmt.Sprintf("%d", i+1)
-			}
-			if m.desc != "" {
-				fmt.Printf("  %s%d) %-40s %s\n", marker, i+1, m.id, m.desc)
-			} else {
-				fmt.Printf("  %s%d) %s\n", marker, i+1, m.id)
-			}
-		}
-
-		// Last option: custom (type manually).
-		customIdx := len(models) + 1
-		fmt.Printf("    %d) %-40s %s\n", customIdx, "Other", "Enter model name manually")
-		fmt.Println()
-
-		// If no existing model matched, default to first.
-		if defaultModelIdx == "" {
-			defaultModelIdx = "1"
-		}
-
-		choice := promptChoice(reader, "Choose model", defaultModelIdx, customIdx)
-		if choice == customIdx {
-			model := promptString(reader, "Model name", "")
-			cfg.Model = model
-		} else {
-			cfg.Model = models[choice-1].id
-		}
-		fmt.Printf("  ✓ Model: %s\n\n", cfg.Model)
-	} else {
-		// No list at all — free input.
 		defaultModel := ""
 		if existing.Model != "" {
 			defaultModel = existing.Model
@@ -586,6 +570,7 @@ func parseOpenAIModels(body []byte, provider string) []modelOption {
 		Data []struct {
 			ID            string `json:"id"`
 			OwnedBy       string `json:"owned_by"`
+			Created       int64  `json:"created,omitempty"`
 			ContextWindow int    `json:"context_window,omitempty"` // Groq extension
 		} `json:"data"`
 	}
@@ -593,10 +578,16 @@ func parseOpenAIModels(body []byte, provider string) []modelOption {
 		return nil
 	}
 
-	var models []modelOption
+	type modelWithTime struct {
+		opt     modelOption
+		created int64
+	}
+
+	var models []modelWithTime
 	for _, m := range resp.Data {
-		// Filter out non-chat models (embeddings, tts, whisper, dall-e, etc.).
 		id := strings.ToLower(m.ID)
+
+		// Filter out non-chat models.
 		if strings.HasPrefix(id, "text-embedding") ||
 			strings.HasPrefix(id, "whisper") ||
 			strings.HasPrefix(id, "tts") ||
@@ -608,28 +599,79 @@ func parseOpenAIModels(body []byte, provider string) []modelOption {
 			continue
 		}
 
+		// Filter out old/deprecated/non-standard models (for OpenAI specifically).
+		if provider == "openai" {
+			if strings.HasPrefix(id, "gpt-3.5") ||
+				strings.HasPrefix(id, "gpt-4-") || // old snapshots: gpt-4-0314, gpt-4-turbo-preview, etc.
+				strings.HasPrefix(id, "gpt-4o-") || // old gpt-4o snapshots (gpt-4o-2024-05-13, etc.)
+				strings.HasPrefix(id, "ft:") || // fine-tuned
+				strings.HasPrefix(id, "chatgpt-") || // internal ChatGPT models
+				strings.HasPrefix(id, "sora") || // video generation
+				strings.HasPrefix(id, "gpt-image") || // image generation
+				strings.Contains(id, "-realtime") || // realtime API
+				strings.Contains(id, "-audio") || // audio models
+				strings.Contains(id, "-transcribe") || // transcription models
+				strings.Contains(id, "-tts") || // text-to-speech
+				strings.Contains(id, "codex") || // code-only models
+				strings.Contains(id, "-chat-latest") || // aliases
+				strings.Contains(id, "deep-research") || // deep research mode
+				strings.Contains(id, "-search") || // search models
+				isDateStamped(id) || // date-stamped versions (gpt-5-2025-08-07)
+				id == "gpt-4" || id == "gpt-4-turbo" || id == "gpt-4o" || id == "gpt-4o-mini" {
+				continue
+			}
+		}
+
 		desc := ""
 		if m.ContextWindow > 0 {
 			desc = fmt.Sprintf("%dk context", m.ContextWindow/1000)
 		}
-		if m.OwnedBy != "" && m.OwnedBy != "system" {
+		if m.OwnedBy != "" && m.OwnedBy != "system" && m.OwnedBy != "openai" {
 			if desc != "" {
 				desc += ", "
 			}
 			desc += m.OwnedBy
 		}
-		models = append(models, modelOption{id: m.ID, desc: desc})
+		models = append(models, modelWithTime{
+			opt:     modelOption{id: m.ID, desc: desc},
+			created: m.Created,
+		})
 	}
 
+	// Sort by created timestamp: newest first.
 	sort.Slice(models, func(i, j int) bool {
-		return models[i].id < models[j].id
+		return models[i].created > models[j].created
 	})
 
-	// Limit to reasonable number for display.
-	if len(models) > 20 {
-		models = models[:20]
+	result := make([]modelOption, 0, len(models))
+	for _, m := range models {
+		result = append(result, m.opt)
 	}
-	return models
+
+	return result
+}
+
+// isDateStamped returns true if the model ID ends with a date suffix like "-2025-08-07".
+func isDateStamped(id string) bool {
+	// Match pattern: -YYYY-MM-DD at the end.
+	if len(id) < 11 {
+		return false
+	}
+	suffix := id[len(id)-11:]
+	if suffix[0] != '-' {
+		return false
+	}
+	date := suffix[1:]
+	// Check YYYY-MM-DD format.
+	if len(date) != 10 || date[4] != '-' || date[7] != '-' {
+		return false
+	}
+	for _, i := range []int{0, 1, 2, 3, 5, 6, 8, 9} {
+		if date[i] < '0' || date[i] > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // parseAnthropicModels parses Anthropic's model list response.
@@ -638,6 +680,7 @@ func parseAnthropicModels(body []byte) []modelOption {
 		Data []struct {
 			ID          string `json:"id"`
 			DisplayName string `json:"display_name"`
+			CreatedAt   string `json:"created_at"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(body, &resp); err != nil {
@@ -646,8 +689,19 @@ func parseAnthropicModels(body []byte) []modelOption {
 
 	var models []modelOption
 	for _, m := range resp.Data {
+		id := strings.ToLower(m.ID)
+
+		// Filter out old/deprecated model families.
+		if strings.HasPrefix(id, "claude-1") ||
+			strings.HasPrefix(id, "claude-2") ||
+			strings.HasPrefix(id, "claude-instant") {
+			continue
+		}
+
 		models = append(models, modelOption{id: m.ID, desc: m.DisplayName})
 	}
+
+	// Anthropic API returns newest first — keep the order.
 	return models
 }
 
@@ -740,10 +794,6 @@ func parseTogetherModels(body []byte) []modelOption {
 		models = append(models, modelOption{id: m.ID, desc: desc})
 	}
 
-	// Limit for display.
-	if len(models) > 25 {
-		models = models[:25]
-	}
 	return models
 }
 
@@ -784,14 +834,199 @@ func parseOpenRouterModels(body []byte) []modelOption {
 		models = append(models, modelOption{id: m.ID, desc: desc})
 	}
 
-	// OpenRouter has hundreds of models — limit.
-	if len(models) > 30 {
-		models = models[:30]
-	}
 	return models
 }
 
 // --- Terminal helpers ---
+
+// selectItem is one entry in an interactive selector.
+type selectItem struct {
+	label string
+	desc  string
+}
+
+// interactiveSelect shows an arrow-key navigable menu.
+// Returns the 0-based index of the selected item, or -1 if cancelled.
+// If the terminal doesn't support raw mode, falls back to numbered input.
+func interactiveSelect(items []selectItem, defaultIdx int) int {
+	fd := int(os.Stdin.Fd())
+	if !term.IsTerminal(fd) {
+		return fallbackSelect(items, defaultIdx)
+	}
+
+	oldState, err := term.MakeRaw(fd)
+	if err != nil {
+		return fallbackSelect(items, defaultIdx)
+	}
+	defer term.Restore(fd, oldState)
+
+	cursor := defaultIdx
+	if cursor < 0 || cursor >= len(items) {
+		cursor = 0
+	}
+
+	// First render — draw the full list from scratch.
+	renderSelectFull(items, cursor)
+
+	buf := make([]byte, 3)
+	for {
+		n, err := os.Stdin.Read(buf)
+		if err != nil || n == 0 {
+			continue
+		}
+
+		switch {
+		case n == 1 && (buf[0] == '\r' || buf[0] == '\n'):
+			// Enter — confirm selection.
+			// Move cursor below the list.
+			fmt.Printf("\r\033[%dB", len(items)-cursor)
+			fmt.Print("\r\n")
+			return cursor
+
+		case n == 1 && buf[0] == 3:
+			// Ctrl+C — cancel.
+			fmt.Printf("\r\033[%dB", len(items)-cursor)
+			fmt.Print("\r\n")
+			return -1
+
+		case n == 1 && buf[0] == 'q':
+			// q — cancel.
+			fmt.Printf("\r\033[%dB", len(items)-cursor)
+			fmt.Print("\r\n")
+			return -1
+
+		case n == 3 && buf[0] == 0x1b && buf[1] == '[' && buf[2] == 'A':
+			// Arrow up.
+			if cursor > 0 {
+				cursor--
+				renderSelect(items, cursor)
+			}
+
+		case n == 3 && buf[0] == 0x1b && buf[1] == '[' && buf[2] == 'B':
+			// Arrow down.
+			if cursor < len(items)-1 {
+				cursor++
+				renderSelect(items, cursor)
+			}
+
+		case n == 1 && buf[0] == 'k':
+			// vim: k = up.
+			if cursor > 0 {
+				cursor--
+				renderSelect(items, cursor)
+			}
+
+		case n == 1 && buf[0] == 'j':
+			// vim: j = down.
+			if cursor < len(items)-1 {
+				cursor++
+				renderSelect(items, cursor)
+			}
+		}
+	}
+}
+
+// renderSelectFull draws the menu for the first time (no cursor movement up).
+func renderSelectFull(items []selectItem, cursor int) {
+	for i, item := range items {
+		fmt.Print("\r\033[K") // clear line
+		if i == cursor {
+			if item.desc != "" {
+				fmt.Printf("  \033[1;36m→ %-38s\033[0m \033[90m%s\033[0m", item.label, item.desc)
+			} else {
+				fmt.Printf("  \033[1;36m→ %s\033[0m", item.label)
+			}
+		} else {
+			if item.desc != "" {
+				fmt.Printf("    %-38s \033[90m%s\033[0m", item.label, item.desc)
+			} else {
+				fmt.Printf("    %s", item.label)
+			}
+		}
+		if i < len(items)-1 {
+			fmt.Print("\n")
+		}
+	}
+	// Move cursor back to selected line.
+	if cursor < len(items)-1 {
+		fmt.Printf("\033[%dA", len(items)-1-cursor)
+	}
+}
+
+// renderSelect redraws the menu in-place (subsequent renders after first).
+func renderSelect(items []selectItem, cursor int) {
+	// Move to first item line.
+	if cursor > 0 {
+		fmt.Printf("\033[%dA", cursor) // move up to top of list
+	}
+
+	for i, item := range items {
+		fmt.Print("\r\033[K") // clear line
+		if i == cursor {
+			if item.desc != "" {
+				fmt.Printf("  \033[1;36m→ %-38s\033[0m \033[90m%s\033[0m", item.label, item.desc)
+			} else {
+				fmt.Printf("  \033[1;36m→ %s\033[0m", item.label)
+			}
+		} else {
+			if item.desc != "" {
+				fmt.Printf("    %-38s \033[90m%s\033[0m", item.label, item.desc)
+			} else {
+				fmt.Printf("    %s", item.label)
+			}
+		}
+		if i < len(items)-1 {
+			fmt.Print("\n")
+		}
+	}
+
+	// Move cursor back to selected line.
+	if cursor < len(items)-1 {
+		fmt.Printf("\033[%dA", len(items)-1-cursor)
+	}
+}
+
+// fallbackSelect is a numbered-input fallback for non-TTY environments.
+func fallbackSelect(items []selectItem, defaultIdx int) int {
+	reader := bufio.NewReader(os.Stdin)
+	for i, item := range items {
+		marker := "  "
+		if i == defaultIdx {
+			marker = "→ "
+		}
+		if item.desc != "" {
+			fmt.Printf("  %s%d) %-38s %s\n", marker, i+1, item.label, item.desc)
+		} else {
+			fmt.Printf("  %s%d) %s\n", marker, i+1, item.label)
+		}
+	}
+	fmt.Println()
+
+	defaultStr := ""
+	if defaultIdx >= 0 {
+		defaultStr = fmt.Sprintf("%d", defaultIdx+1)
+	}
+
+	for {
+		if defaultStr != "" {
+			fmt.Printf("  Choose [%s]: ", defaultStr)
+		} else {
+			fmt.Print("  Choose: ")
+		}
+
+		line, _ := reader.ReadString('\n')
+		line = strings.TrimSpace(line)
+		if line == "" && defaultStr != "" {
+			line = defaultStr
+		}
+
+		var choice int
+		if _, err := fmt.Sscanf(line, "%d", &choice); err == nil && choice >= 1 && choice <= len(items) {
+			return choice - 1
+		}
+		fmt.Printf("  Enter a number between 1 and %d.\n", len(items))
+	}
+}
 
 // promptString asks for a string input with a default value.
 func promptString(reader *bufio.Reader, prompt, defaultVal string) string {
@@ -807,29 +1042,6 @@ func promptString(reader *bufio.Reader, prompt, defaultVal string) string {
 		return defaultVal
 	}
 	return line
-}
-
-// promptChoice asks for a numbered choice.
-func promptChoice(reader *bufio.Reader, prompt, defaultVal string, max int) int {
-	for {
-		if defaultVal != "" {
-			fmt.Printf("  %s [%s]: ", prompt, defaultVal)
-		} else {
-			fmt.Printf("  %s: ", prompt)
-		}
-
-		line, _ := reader.ReadString('\n')
-		line = strings.TrimSpace(line)
-		if line == "" && defaultVal != "" {
-			line = defaultVal
-		}
-
-		var choice int
-		if _, err := fmt.Sscanf(line, "%d", &choice); err == nil && choice >= 1 && choice <= max {
-			return choice
-		}
-		fmt.Printf("  Please enter a number between 1 and %d.\n", max)
-	}
 }
 
 // readSecretLine reads a line without echoing (for API keys).

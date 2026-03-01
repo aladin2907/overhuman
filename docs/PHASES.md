@@ -186,6 +186,65 @@
 
 ---
 
+## Phase 5: Generative UI ⏳ IN PROGRESS
+
+> Full spec: [SPEC_DYNAMIC_UI.md](./SPEC_DYNAMIC_UI.md)
+> Подход: **Level 3 — Fully Generated UI** (LLM генерирует HTML/CSS/JS и ANSI с нуля)
+
+**Goal:** LLM-generated, device-adaptive UI — CLI ANSI art, web HTML apps, tablet kiosk
+
+### Phase 5A: UIGenerator + CLI ANSI Rendering
+
+| Component | Package | Status | Tests |
+|-----------|---------|--------|-------|
+| GeneratedUI types | `internal/genui/types.go` | ⏳ | ⏳ |
+| UIGenerator (LLM → UI code) | `internal/genui/generator.go` | ⏳ | ⏳ |
+| ANSI system prompt | `internal/genui/prompt_ansi.go` | ⏳ | ⏳ |
+| ANSI sanitizer | `internal/genui/sanitize.go` | ⏳ | ⏳ |
+| Self-Healing (retry loop) | `internal/genui/selfheal.go` | ⏳ | ⏳ |
+| ThoughtLog builder | `internal/genui/thoughtlog.go` | ⏳ | ⏳ |
+| CLI renderer | `internal/genui/cli.go` | ⏳ | ⏳ |
+| CLI action handler | `internal/genui/cli_actions.go` | ⏳ | ⏳ |
+| UI Reflection | `internal/genui/reflection.go` | ⏳ | ⏳ |
+| Pipeline integration | `cmd/overhuman/main.go` | ⏳ | ⏳ |
+
+### Phase 5B: HTML Generation + WebSocket + Sandbox + Web Runtime
+
+| Component | Package | Status | Tests |
+|-----------|---------|--------|-------|
+| HTML system prompt | `internal/genui/prompt_html.go` | ⏳ | ⏳ |
+| React system prompt | `internal/genui/prompt_react.go` | ⏳ | ⏳ |
+| HTML sanitizer + CSP | `internal/genui/sanitize_html.go` | ⏳ | ⏳ |
+| Sandbox wrapper (iframe) | `internal/genui/sandbox.go` | ⏳ | ⏳ |
+| Canvas layout | `internal/genui/canvas.go` | ⏳ | ⏳ |
+| WebSocket server | `internal/genui/ws.go` | ⏳ | ⏳ |
+| WS protocol | `internal/genui/ws_protocol.go` | ⏳ | ⏳ |
+| Streaming generation | `internal/genui/stream.go` | ⏳ | ⏳ |
+| HTTP REST API | `internal/genui/api.go` | ⏳ | ⏳ |
+| Emergency Stop (WS cancel) | `internal/genui/ws_protocol.go` | ⏳ | ⏳ |
+
+### Phase 5C: Tablet Kiosk App
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| App shell (kiosk mode) | ⏳ | WebView-based, fullscreen |
+| WS client + reconnect | ⏳ | Auto-reconnect с retry |
+| WebView sandbox | ⏳ | Sandboxed HTML rendering |
+| Action bridge (postMessage → WS) | ⏳ | |
+| Canvas layout + Dynamic Expand | ⏳ | |
+| Offline cache (last UI) | ⏳ | |
+
+### Phase 5D: UI Evolution — Self-Improvement
+
+| Component | Package | Status | Tests |
+|-----------|---------|--------|-------|
+| UI Memory (patterns by fingerprint) | `internal/genui/memory.go` | ⏳ | ⏳ |
+| Hint Builder (history → prompts) | `internal/genui/hints.go` | ⏳ | ⏳ |
+| A/B Testing (2 UI variants) | `internal/genui/ab.go` | ⏳ | ⏳ |
+| Style Evolution | `internal/genui/style.go` | ⏳ | ⏳ |
+
+---
+
 ## Statistics
 
 | Metric | Value |

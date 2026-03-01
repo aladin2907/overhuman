@@ -76,11 +76,12 @@ func (p *OpenAIProvider) Models() []string {
 
 // openaiRequest is the OpenAI chat completions request body.
 type openaiRequest struct {
-	Model       string           `json:"model"`
-	Messages    []openaiMsg      `json:"messages"`
-	Temperature *float64         `json:"temperature,omitempty"`
-	MaxTokens   *int             `json:"max_tokens,omitempty"`
-	Tools       []openaiToolDef  `json:"tools,omitempty"`
+	Model               string           `json:"model"`
+	Messages            []openaiMsg      `json:"messages"`
+	Temperature         *float64         `json:"temperature,omitempty"`
+	MaxTokens           *int             `json:"max_tokens,omitempty"`
+	MaxCompletionTokens *int             `json:"max_completion_tokens,omitempty"`
+	Tools               []openaiToolDef  `json:"tools,omitempty"`
 }
 
 type openaiMsg struct {
@@ -159,7 +160,11 @@ func (p *OpenAIProvider) Complete(ctx context.Context, req LLMRequest) (*LLMResp
 
 	if req.MaxTokens > 0 {
 		mt := req.MaxTokens
-		or.MaxTokens = &mt
+		if useMaxCompletionTokens(model) {
+			or.MaxCompletionTokens = &mt
+		} else {
+			or.MaxTokens = &mt
+		}
 	}
 
 	for _, tool := range req.Tools {
@@ -239,6 +244,18 @@ func (p *OpenAIProvider) Complete(ctx context.Context, req LLMRequest) (*LLMResp
 	result.CostUSD = openaiCalculateCost(or2.Model, or2.Usage.PromptTokens, or2.Usage.CompletionTokens)
 
 	return result, nil
+}
+
+// useMaxCompletionTokens returns true if the model requires max_completion_tokens
+// instead of max_tokens. Newer OpenAI models (o-series, gpt-4.1+, gpt-5+) use this.
+func useMaxCompletionTokens(model string) bool {
+	m := strings.ToLower(model)
+	return strings.HasPrefix(m, "o1") ||
+		strings.HasPrefix(m, "o3") ||
+		strings.HasPrefix(m, "o4") ||
+		strings.HasPrefix(m, "gpt-4.1") ||
+		strings.HasPrefix(m, "gpt-4o") ||
+		strings.HasPrefix(m, "gpt-5")
 }
 
 // openaiCalculateCost computes USD cost based on model and token counts.

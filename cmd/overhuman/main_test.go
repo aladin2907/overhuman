@@ -1,15 +1,14 @@
 package main
 
 import (
-	"os"
 	"testing"
 )
 
 func TestLoadConfig_Defaults(t *testing.T) {
-	// Clear env to test defaults.
-	os.Unsetenv("OVERHUMAN_DATA")
-	os.Unsetenv("OVERHUMAN_API_ADDR")
-	os.Unsetenv("OVERHUMAN_NAME")
+	// Point to empty temp dir so real ~/.overhuman/config.json is not read.
+	t.Setenv("OVERHUMAN_DATA", t.TempDir())
+	t.Setenv("OVERHUMAN_API_ADDR", "")
+	t.Setenv("OVERHUMAN_NAME", "")
 
 	cfg := loadConfig()
 
@@ -107,6 +106,12 @@ func TestBootstrap_WithClaudeKey(t *testing.T) {
 	}
 	if reflEngine == nil {
 		t.Error("reflEngine should not be nil")
+	}
+	if deps.Reflection == nil {
+		t.Error("deps.Reflection should not be nil (must be wired into pipeline)")
+	}
+	if deps.Reflection != reflEngine {
+		t.Error("deps.Reflection should be the same instance as reflEngine")
 	}
 }
 

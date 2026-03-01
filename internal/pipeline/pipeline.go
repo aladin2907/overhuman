@@ -730,7 +730,7 @@ func (p *Pipeline) logInfo(msg string, args ...any) {
 	if p.deps.Logger != nil {
 		p.deps.Logger.Info(msg, args...)
 	} else {
-		log.Printf("[pipeline] %s", msg)
+		log.Printf("[pipeline] %s%s", msg, formatLogArgs(args))
 	}
 }
 
@@ -739,8 +739,20 @@ func (p *Pipeline) logWarn(msg string, args ...any) {
 	if p.deps.Logger != nil {
 		p.deps.Logger.Warn(msg, args...)
 	} else {
-		log.Printf("[pipeline] WARN: %s", msg)
+		log.Printf("[pipeline] WARN: %s%s", msg, formatLogArgs(args))
 	}
+}
+
+// formatLogArgs formats key-value pairs for fallback log output.
+func formatLogArgs(args []any) string {
+	if len(args) == 0 {
+		return ""
+	}
+	s := ""
+	for i := 0; i+1 < len(args); i += 2 {
+		s += fmt.Sprintf(" %v=%v", args[i], args[i+1])
+	}
+	return s
 }
 
 // logPipeline logs a pipeline stage event.

@@ -301,6 +301,7 @@ func bootstrap(cfg Config) (pipeline.Dependencies, *reflection.Engine, error) {
 		LongTerm:      ltm,
 		Patterns:      pt,
 		AutoThreshold: 3,
+		Reflection:    reflEngine,
 	}
 
 	log.Printf("[bootstrap] all subsystems ready")
