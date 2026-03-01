@@ -186,7 +186,7 @@
 
 ---
 
-## Phase 5: Generative UI ⏳ IN PROGRESS
+## Phase 5: Generative UI ✅ COMPLETE
 
 > Full spec: [SPEC_DYNAMIC_UI.md](./SPEC_DYNAMIC_UI.md)
 > Подход: **Level 3 — Fully Generated UI** (LLM генерирует HTML/CSS/JS и ANSI с нуля)
@@ -246,14 +246,16 @@
 
 **33 new tests** in `kiosk_test.go`, daemon serves kiosk on port API+2 (default: 9092)
 
-### Phase 5D: UI Evolution — Self-Improvement
+### Phase 5D: UI Evolution — Self-Improvement ✅ COMPLETE
 
 | Component | Package | Status | Tests |
 |-----------|---------|--------|-------|
-| UI Memory (patterns by fingerprint) | `internal/genui/memory.go` | ⏳ | ⏳ |
-| Hint Builder (history → prompts) | `internal/genui/hints.go` | ⏳ | ⏳ |
-| A/B Testing (2 UI variants) | `internal/genui/ab.go` | ⏳ | ⏳ |
-| Style Evolution | `internal/genui/style.go` | ⏳ | ⏳ |
+| UI Memory (patterns by fingerprint) | `internal/genui/ui_memory.go` | ✅ | ✅ |
+| Hint Builder (history → prompts) | `internal/genui/hints.go` | ✅ | ✅ |
+| A/B Testing (2 UI variants) | `internal/genui/ab.go` | ✅ | ✅ |
+| Style Evolution (user pref learning) | `internal/genui/style.go` | ✅ | ✅ |
+
+**67 new tests** (20 ui_memory + 17 hints + 14 ab + 16 style), self-improving UI via memory patterns, A/B testing, and style evolution
 
 ---
 
@@ -261,8 +263,8 @@
 
 | Metric | Value |
 |--------|-------|
-| Total Go files | ~132 |
-| Total lines of Go | ~37,000 |
-| Total tests | 826 |
+| Total Go files | ~140 |
+| Total lines of Go | ~39,600 |
+| Total tests | 893 |
 | Packages with tests | 20/20 |
 | External dependencies | 2 (uuid, sqlite) |
