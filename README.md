@@ -12,6 +12,8 @@ Tasks → LLM executes → Reflection → Patterns → Code skills
 
 ## Features
 
+**Generative UI (Level 3)** — LLM generates complete visual UI from scratch for every response. Not templates, not component catalogs — the AI decides how to visualize each result. ANSI art in terminal, full HTML/CSS/JS apps in browser, React+Tailwind via in-browser compilation. Self-healing: if generated code has errors, the agent auto-retries. UI reflection: learns from user interactions and improves over time. The first Go project with AI-generated multi-device UI.
+
 **Universal assistant** — not just for code. Marketing, planning, data analysis, communications, routine automation.
 
 **Remembers everything** — short-term memory (current dialog) + long-term (SQLite with full-text search) + pattern tracking. No need to repeat yourself.
@@ -103,6 +105,30 @@ Result: each cycle makes the system cheaper (code vs API), faster (ms vs seconds
 
 Agents form a tree. A parent creates specialized children (coder, reviewer, researcher), delegates tasks, runs competitions (best-of-N), and fires/promotes based on results. Each agent has its own identity, memory, and skills.
 
+### Generative UI
+
+After the pipeline processes a task, a separate LLM call generates the visual representation:
+
+```
+Pipeline.Run() → RunResult → UIGenerator.Generate() → GeneratedUI
+                                    ↓
+                    CLI: ANSI art (tables, charts, boxes)
+                    Web: HTML + CSS + JS (sandboxed iframe)
+                    Tablet: full-screen kiosk app
+```
+
+Key capabilities:
+
+| Feature | What it does |
+|---------|-------------|
+| **Self-Healing** | Invalid UI code? Agent retries with the error message (max 2 retries), then falls back to plain text |
+| **Progressive Disclosure** | Shows TL;DR first, details on demand |
+| **Thought Logs** | Transparent pipeline execution: which stages ran, how long, what decisions were made |
+| **UI Reflection** | Tracks which actions users click, what they scroll past — improves future UI |
+| **Sandbox** | Generated HTML runs in a sandboxed iframe with CSP: no network, no navigation, no data exfiltration |
+
+Cost: ~$0.001 per UI generation (gpt-4.1-nano). Skipped for short answers.
+
 ## HTTP API
 
 ```bash
@@ -167,6 +193,7 @@ internal/
 ├── security/        — sanitization, audit, encryption, validation
 ├── mcp/             — MCP client and registry (JSON-RPC 2.0)
 ├── storage/         — persistent KV store (SQLite, FTS5, TTL)
+├── genui/           — generative UI (LLM → ANSI/HTML, self-healing, reflection)
 ├── skills/          — 20 starter skills
 └── observability/   — structured logs and metrics
 ```
@@ -174,7 +201,7 @@ internal/
 ## Tests
 
 ```bash
-go test ./...         # 586 tests, 19 packages
+go test ./...         # 696 tests, 20 packages
 go test ./... -race   # Race condition checks
 ```
 
@@ -183,6 +210,7 @@ All tests run with a mock LLM server — no API keys needed.
 ## Docs
 
 - `docs/SPEC.md` — full specification (700+ lines)
+- `docs/SPEC_DYNAMIC_UI.md` — generative UI specification (1186 lines)
 - `docs/PHASES.md` — implementation tracker
 - `docs/ARCHITECTURE.md` — architecture
 
