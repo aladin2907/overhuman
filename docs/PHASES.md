@@ -193,35 +193,40 @@
 
 **Goal:** LLM-generated, device-adaptive UI — CLI ANSI art, web HTML apps, tablet kiosk
 
-### Phase 5A: UIGenerator + CLI ANSI Rendering
+### Phase 5A: UIGenerator + CLI ANSI Rendering ✅ COMPLETE
 
 | Component | Package | Status | Tests |
 |-----------|---------|--------|-------|
-| GeneratedUI types | `internal/genui/types.go` | ⏳ | ⏳ |
-| UIGenerator (LLM → UI code) | `internal/genui/generator.go` | ⏳ | ⏳ |
-| ANSI system prompt | `internal/genui/prompt_ansi.go` | ⏳ | ⏳ |
-| ANSI sanitizer | `internal/genui/sanitize.go` | ⏳ | ⏳ |
-| Self-Healing (retry loop) | `internal/genui/selfheal.go` | ⏳ | ⏳ |
-| ThoughtLog builder | `internal/genui/thoughtlog.go` | ⏳ | ⏳ |
-| CLI renderer | `internal/genui/cli.go` | ⏳ | ⏳ |
-| CLI action handler | `internal/genui/cli_actions.go` | ⏳ | ⏳ |
-| UI Reflection | `internal/genui/reflection.go` | ⏳ | ⏳ |
-| Pipeline integration | `cmd/overhuman/main.go` | ⏳ | ⏳ |
+| GeneratedUI types | `internal/genui/types.go` | ✅ | ✅ |
+| UIGenerator (LLM → UI code) | `internal/genui/types.go` | ✅ | ✅ |
+| ANSI system prompt | `internal/genui/prompt_ansi.go` | ✅ | ✅ |
+| ANSI sanitizer | `internal/genui/sanitize.go` | ✅ | ✅ |
+| Self-Healing (retry loop) | `internal/genui/types.go` | ✅ | ✅ |
+| ThoughtLog builder | `internal/genui/thoughtlog.go` | ✅ | ✅ |
+| CLI renderer | `internal/genui/cli.go` | ✅ | ✅ |
+| UI Reflection | `internal/genui/reflection.go` | ✅ | ✅ |
+| Pipeline StageLogs | `internal/pipeline/pipeline.go` | ✅ | ✅ |
+| Pipeline integration | `cmd/overhuman/main.go` | ✅ | ✅ |
 
-### Phase 5B: HTML Generation + WebSocket + Sandbox + Web Runtime
+**98 tests** in `internal/genui/` + 4 integration tests in `cmd/overhuman/`
+
+### Phase 5B: HTML Generation + WebSocket + Sandbox + Web Runtime ✅ COMPLETE
 
 | Component | Package | Status | Tests |
 |-----------|---------|--------|-------|
-| HTML system prompt | `internal/genui/prompt_html.go` | ⏳ | ⏳ |
-| React system prompt | `internal/genui/prompt_react.go` | ⏳ | ⏳ |
-| HTML sanitizer + CSP | `internal/genui/sanitize_html.go` | ⏳ | ⏳ |
-| Sandbox wrapper (iframe) | `internal/genui/sandbox.go` | ⏳ | ⏳ |
-| Canvas layout | `internal/genui/canvas.go` | ⏳ | ⏳ |
-| WebSocket server | `internal/genui/ws.go` | ⏳ | ⏳ |
-| WS protocol | `internal/genui/ws_protocol.go` | ⏳ | ⏳ |
-| Streaming generation | `internal/genui/stream.go` | ⏳ | ⏳ |
-| HTTP REST API | `internal/genui/api.go` | ⏳ | ⏳ |
-| Emergency Stop (WS cancel) | `internal/genui/ws_protocol.go` | ⏳ | ⏳ |
+| HTML system prompt | `internal/genui/prompt_html.go` | ✅ | ✅ |
+| React system prompt | `internal/genui/prompt_react.go` | ✅ | ✅ |
+| HTML sanitizer + CSP | `internal/genui/sanitize_html.go` | ✅ | ✅ |
+| Sandbox wrapper (iframe) | `internal/genui/sandbox.go` | ✅ | ✅ |
+| Canvas layout | `internal/genui/canvas.go` | ✅ | ✅ |
+| WebSocket server (RFC 6455, stdlib) | `internal/genui/ws.go` | ✅ | ✅ |
+| WS protocol (10 message types) | `internal/genui/ws_protocol.go` | ✅ | ✅ |
+| Streaming generation | `internal/genui/stream.go` | ✅ | ✅ |
+| HTTP REST API | `internal/genui/api.go` | ✅ | ✅ |
+| Emergency Stop (WS cancel) | `internal/genui/ws_protocol.go` | ✅ | ✅ |
+| Daemon WS integration | `cmd/overhuman/main.go` | ✅ | ✅ |
+
+**93 new tests** (191 total in `internal/genui/`), zero external dependencies (RFC 6455 WebSocket in pure stdlib)
 
 ### Phase 5C: Tablet Kiosk App
 
@@ -249,8 +254,8 @@
 
 | Metric | Value |
 |--------|-------|
-| Total Go files | 96 |
-| Total lines of Go | ~25,000 |
-| Total tests | 551 |
-| Packages with tests | 18/18 |
+| Total Go files | ~129 |
+| Total lines of Go | ~35,500 |
+| Total tests | 793 |
+| Packages with tests | 20/20 |
 | External dependencies | 2 (uuid, sqlite) |

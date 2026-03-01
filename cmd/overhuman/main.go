@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -518,10 +519,10 @@ func runCLI() {
 	}
 }
 
-// runDaemon starts the full daemon with HTTP API and heartbeat timer.
+// runDaemon starts the full daemon with HTTP API, WebSocket UI server, and heartbeat timer.
 func runDaemon() {
 	cfg := loadConfig()
-	deps, _, _, err := bootstrap(cfg)
+	deps, _, uiGen, err := bootstrap(cfg)
 	if err != nil {
 		log.Fatalf("[daemon] bootstrap: %v", err)
 	}
@@ -547,6 +548,63 @@ func runDaemon() {
 		}
 	}()
 
+	// WebSocket UI server on derived port (API port + 1).
+	wsAddr := deriveWSAddr(cfg.APIAddr)
+	wsSrv := genui.NewWSServer(wsAddr)
+	uiAPIHandler := genui.NewUIAPIHandler(uiGen, wsSrv)
+	uiReflection := genui.NewReflectionStore()
+	webCaps := genui.WebCapabilities(1280, 800)
+
+	// Wire WS incoming messages → pipeline input or reflection store.
+	wsSrv.OnMessage(func(connID string, msg *genui.WSMessage) {
+		switch msg.Type {
+		case genui.WSMsgInput:
+			payload, err := genui.ParseInputPayload(msg)
+			if err != nil {
+				log.Printf("[ws] bad input payload from %s: %v", connID, err)
+				return
+			}
+			input := senses.NewUnifiedInput(senses.SourceAPI, payload.Text)
+			input.ResponseChannel = "ws"
+			input.CorrelationID = connID
+			select {
+			case out <- input:
+			default:
+				log.Printf("[ws] pipeline busy, dropping input from %s", connID)
+			}
+
+		case genui.WSMsgUIFeedback:
+			payload, err := genui.ParseUIFeedbackPayload(msg)
+			if err != nil {
+				log.Printf("[ws] bad feedback from %s: %v", connID, err)
+				return
+			}
+			uiReflection.Record(genui.UIReflection{
+				TaskID:       payload.TaskID,
+				Scrolled:     payload.Scrolled,
+				TimeToAction: payload.TimeToAction,
+				ActionsUsed:  payload.ActionsUsed,
+				Dismissed:    payload.Dismissed,
+			})
+
+		case genui.WSMsgCancel:
+			log.Printf("[ws] cancel request from %s", connID)
+
+		case genui.WSMsgAction:
+			log.Printf("[ws] action from %s (not yet routed)", connID)
+		}
+	})
+
+	go func() {
+		log.Printf("[daemon] WebSocket UI server on %s", wsAddr)
+		if err := wsSrv.Start(ctx); err != nil && ctx.Err() == nil {
+			log.Printf("[daemon] WS error: %v", err)
+		}
+	}()
+
+	// Register UI API routes on a separate mux (shares API port via api sense).
+	_ = uiAPIHandler // routes available via /api/ui/* when api sense adds them
+
 	// Heartbeat timer (every 30 minutes).
 	heartbeatTicker := time.NewTicker(30 * time.Minute)
 	defer heartbeatTicker.Stop()
@@ -568,7 +626,7 @@ func runDaemon() {
 		}
 	}()
 
-	log.Printf("[daemon] %s v%s started", cfg.AgentName, version)
+	log.Printf("[daemon] %s v%s started (API=%s, WS=%s)", cfg.AgentName, version, cfg.APIAddr, wsAddr)
 
 	// Main processing loop.
 	go func() {
@@ -598,6 +656,36 @@ func runDaemon() {
 				if input.CorrelationID != "" && input.ResponseChannel == "api" {
 					api.Send(ctx, input.CorrelationID, result.Result)
 				}
+
+				// Generate UI and broadcast to connected WebSocket clients.
+				if wsSrv.ClientCount() > 0 {
+					var thought *genui.ThoughtLog
+					if len(result.StageLogs) > 0 {
+						stages := make([]genui.ThoughtStage, len(result.StageLogs))
+						for i, sl := range result.StageLogs {
+							stages[i] = genui.ThoughtStage{
+								Number:  sl.Number,
+								Name:    sl.Name,
+								Summary: sl.Summary,
+								DurMs:   sl.DurMs,
+							}
+						}
+						thought = genui.BuildThoughtLog(stages)
+						thought.TotalCost = result.CostUSD
+					}
+
+					hints := uiReflection.BuildHints(result.Fingerprint)
+					ui, uiErr := uiGen.GenerateWithThought(ctx, *result, webCaps, thought, hints)
+					if uiErr != nil {
+						log.Printf("[daemon] UI generation failed: %v", uiErr)
+					} else {
+						ui.Sandbox = true
+						uiAPIHandler.CacheUI(ui)
+						if bErr := wsSrv.BroadcastUI(ui); bErr != nil {
+							log.Printf("[daemon] UI broadcast error: %v", bErr)
+						}
+					}
+				}
 			}
 		}
 	}()
@@ -608,9 +696,21 @@ func runDaemon() {
 	cancel()
 
 	// Graceful shutdown.
+	wsSrv.Stop()
 	api.Stop()
 	deps.LongTerm.Close()
 	log.Printf("[daemon] shutdown complete")
+}
+
+// deriveWSAddr increments the port from the API address by 1 for the WebSocket server.
+func deriveWSAddr(apiAddr string) string {
+	host, portStr, err := net.SplitHostPort(apiAddr)
+	if err != nil {
+		return "127.0.0.1:9091"
+	}
+	var port int
+	fmt.Sscanf(portStr, "%d", &port)
+	return net.JoinHostPort(host, fmt.Sprintf("%d", port+1))
 }
 
 // runStatus checks if the daemon is running by hitting the health endpoint.

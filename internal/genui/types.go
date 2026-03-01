@@ -16,6 +16,7 @@ type UIFormat string
 const (
 	FormatANSI     UIFormat = "ansi"     // CLI: ANSI escape + box drawing
 	FormatHTML     UIFormat = "html"     // Web/Tablet: HTML + CSS + JS
+	FormatReact    UIFormat = "react"    // Web: React + Tailwind (compiled in browser)
 	FormatMarkdown UIFormat = "markdown" // Fallback: plain markdown
 )
 
@@ -27,6 +28,7 @@ type GeneratedUI struct {
 	Actions []GeneratedAction `json:"actions,omitempty"`
 	Meta    UIMeta            `json:"meta,omitempty"`
 	Thought *ThoughtLog       `json:"thought,omitempty"` // pipeline thought chain
+	Sandbox bool              `json:"sandbox,omitempty"` // wrap in sandboxed iframe
 }
 
 // GeneratedAction is an interactive action embedded in generated UI.
@@ -187,6 +189,12 @@ func (g *UIGenerator) GenerateWithThought(ctx context.Context, result pipeline.R
 
 // selectFormat picks the best format for the device.
 func (g *UIGenerator) selectFormat(caps DeviceCapabilities) UIFormat {
+	// If the device explicitly requests a format, use it.
+	if caps.Format == FormatReact || caps.Format == FormatANSI || caps.Format == FormatMarkdown {
+		return caps.Format
+	}
+	// For HTML-capable devices with JavaScript, prefer React for richer UI.
+	// Plain HTML is always the safe default for web devices.
 	return caps.Format
 }
 
@@ -198,6 +206,8 @@ func (g *UIGenerator) buildPrompt(result pipeline.RunResult, format UIFormat, ca
 		sysPrompt = SystemPromptANSI
 	case FormatHTML:
 		sysPrompt = SystemPromptHTML
+	case FormatReact:
+		sysPrompt = SystemPromptReact
 	default:
 		sysPrompt = SystemPromptANSI
 	}
