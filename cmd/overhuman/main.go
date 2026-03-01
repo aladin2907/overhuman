@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -546,6 +547,12 @@ func runDaemon() {
 	}
 	defer pf.Remove()
 
+	// Set up log tee: write to stdout AND to log file.
+	logFile := setupLogTee(cfg.DataDir)
+	if logFile != nil {
+		defer logFile.Close()
+	}
+
 	deps, _, uiGen, err := bootstrap(cfg)
 	if err != nil {
 		log.Fatalf("[daemon] bootstrap: %v", err)
@@ -651,6 +658,24 @@ func runDaemon() {
 		}
 	}()
 
+	// File watcher sense — monitors ~/.overhuman/inbox/ for new files.
+	inboxDir := filepath.Join(cfg.DataDir, "inbox")
+	if err := os.MkdirAll(inboxDir, 0o755); err != nil {
+		log.Printf("[daemon] create inbox dir: %v", err)
+	} else {
+		fw := senses.NewFileWatcherSense(senses.FileWatcherConfig{
+			WatchDir:     inboxDir,
+			PollInterval: 5 * time.Second,
+			Recursive:    true,
+		})
+		go func() {
+			log.Printf("[daemon] file watcher: %s", inboxDir)
+			if err := fw.Start(ctx, out); err != nil && ctx.Err() == nil {
+				log.Printf("[daemon] file watcher error: %v", err)
+			}
+		}()
+	}
+
 	// Heartbeat timer (every 30 minutes).
 	heartbeatTicker := time.NewTicker(30 * time.Minute)
 	defer heartbeatTicker.Stop()
@@ -672,7 +697,7 @@ func runDaemon() {
 		}
 	}()
 
-	log.Printf("[daemon] %s v%s started (API=%s, WS=%s, Kiosk=http://%s)", cfg.AgentName, version, cfg.APIAddr, wsAddr, kioskAddr)
+	log.Printf("[daemon] %s v%s started (API=%s, WS=%s, Kiosk=http://%s, Inbox=%s)", cfg.AgentName, version, cfg.APIAddr, wsAddr, kioskAddr, inboxDir)
 
 	// Main processing loop.
 	go func() {
@@ -892,6 +917,29 @@ func runUpdate() {
 	}
 }
 
+// setupLogTee configures log output to write to both stdout and a log file.
+// Returns the log file handle (caller should defer Close) or nil on error.
+func setupLogTee(dataDir string) *os.File {
+	logDir := filepath.Join(dataDir, "logs")
+	if err := os.MkdirAll(logDir, 0o755); err != nil {
+		log.Printf("[daemon] cannot create log dir: %v (logging to stdout only)", err)
+		return nil
+	}
+
+	logPath := filepath.Join(logDir, "overhuman.log")
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		log.Printf("[daemon] cannot open log file: %v (logging to stdout only)", err)
+		return nil
+	}
+
+	// Tee: all log output goes to stdout AND the file.
+	mw := io.MultiWriter(os.Stdout, f)
+	log.SetOutput(mw)
+	log.Printf("[daemon] logging to %s", logPath)
+	return f
+}
+
 // runLogs tails the daemon log file.
 func runLogs() {
 	cfg := loadConfig()
@@ -899,8 +947,7 @@ func runLogs() {
 
 	if _, err := os.Stat(logPath); os.IsNotExist(err) {
 		fmt.Fprintf(os.Stderr, "no log file found at %s\n", logPath)
-		fmt.Fprintf(os.Stderr, "hint: the daemon writes logs to stdout by default.\n")
-		fmt.Fprintf(os.Stderr, "      install as a service with 'overhuman install' for file logging.\n")
+		fmt.Fprintf(os.Stderr, "hint: start the daemon with 'overhuman start' — it logs to stdout and file.\n")
 		os.Exit(1)
 	}
 

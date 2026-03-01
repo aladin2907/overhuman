@@ -274,6 +274,9 @@
 | File watcher sense (FS polling) | `internal/senses/filewatcher.go` | ✅ | ✅ |
 | CLI commands: install, uninstall, stop, update, logs | `cmd/overhuman/main.go` | ✅ | ✅ |
 | Daemon PID guard (single instance enforcement) | `cmd/overhuman/main.go` | ✅ | ✅ |
+| File watcher wired into daemon (inbox dir) | `cmd/overhuman/main.go` | ✅ | ✅ |
+| Log tee (stdout + file simultaneously) | `cmd/overhuman/main.go` | ✅ | ✅ |
+| GoReleaser config (pre-built binaries) | `.goreleaser.yaml` | ✅ | — |
 
 **53 new tests** (40 deploy + 13 filewatcher), new package `internal/deploy/`
 
@@ -285,6 +288,11 @@ overhuman stop       — Send SIGTERM to running daemon
 overhuman update     — Check & apply updates (SHA256 verified)
 overhuman logs       — View last 50 lines of daemon log
 ```
+
+**Daemon services:**
+- API (9090), WebSocket (9091), Kiosk (9092)
+- File watcher: `~/.overhuman/inbox/` (auto-pickup)
+- Logs: stdout + `~/.overhuman/logs/overhuman.log`
 
 ---
 

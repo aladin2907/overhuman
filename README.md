@@ -40,14 +40,45 @@ go build -o overhuman ./cmd/overhuman/
 # Start in chat mode
 ./overhuman cli
 
-# Or as a daemon with HTTP API
+# Or as a daemon with HTTP API + WebSocket + Kiosk UI
 ./overhuman start
-
-# Health check
-./overhuman doctor
 ```
 
 On first run, `overhuman cli` will automatically prompt the setup wizard if no keys are configured.
+
+**Zero-config local mode** — no API key needed:
+```bash
+LLM_PROVIDER=ollama ./overhuman cli
+```
+
+## Deployment
+
+```bash
+# Diagnostics — check config, connection, database
+overhuman doctor
+
+# Install as OS service (launchd on macOS, systemd on Linux)
+overhuman install
+
+# Management
+overhuman status     # check if daemon is running
+overhuman stop       # graceful shutdown (SIGTERM)
+overhuman logs       # tail last 50 lines of log
+overhuman update     # check & apply updates (SHA256 verified)
+overhuman uninstall  # remove OS service
+```
+
+The daemon opens 3 ports (configurable via `OVERHUMAN_API_ADDR`):
+
+| Port | Service | Description |
+|------|---------|-------------|
+| 9090 | HTTP API | REST API for integrations (`/input`, `/input/sync`, `/health`) |
+| 9091 | WebSocket | Real-time UI streaming (RFC 6455, pure stdlib) |
+| 9092 | Kiosk | Full-screen web app (tablet/desktop) |
+
+File drop: place files in `~/.overhuman/inbox/` — the daemon picks them up automatically.
+
+Logs are written to both stdout and `~/.overhuman/logs/overhuman.log`.
 
 ## Supported LLMs
 
@@ -194,6 +225,7 @@ internal/
 ├── mcp/             — MCP client and registry (JSON-RPC 2.0)
 ├── storage/         — persistent KV store (SQLite, FTS5, TTL)
 ├── genui/           — generative UI (LLM → ANSI/HTML, self-healing, reflection)
+├── deploy/          — PID management, OS service templates, auto-update
 ├── skills/          — 20 starter skills
 └── observability/   — structured logs and metrics
 ```
@@ -201,7 +233,7 @@ internal/
 ## Tests
 
 ```bash
-go test ./...         # 696 tests, 20 packages
+go test ./...         # 946 tests, 21 packages
 go test ./... -race   # Race condition checks
 ```
 
