@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/overhuman/overhuman/internal/brain"
+	"github.com/overhuman/overhuman/internal/genui"
 	"github.com/overhuman/overhuman/internal/memory"
 	"github.com/overhuman/overhuman/internal/pipeline"
 	"github.com/overhuman/overhuman/internal/reflection"
@@ -238,10 +239,10 @@ func isTerminal() bool {
 }
 
 // bootstrap initializes all subsystems and returns the pipeline dependencies.
-func bootstrap(cfg Config) (pipeline.Dependencies, *reflection.Engine, error) {
+func bootstrap(cfg Config) (pipeline.Dependencies, *reflection.Engine, *genui.UIGenerator, error) {
 	// Ensure data directory exists.
 	if err := os.MkdirAll(cfg.DataDir, 0o755); err != nil {
-		return pipeline.Dependencies{}, nil, fmt.Errorf("create data dir: %w", err)
+		return pipeline.Dependencies{}, nil, nil, fmt.Errorf("create data dir: %w", err)
 	}
 
 	// Soul.
@@ -249,7 +250,7 @@ func bootstrap(cfg Config) (pipeline.Dependencies, *reflection.Engine, error) {
 	if err := s.Initialize(); err != nil {
 		// Already initialized is fine.
 		if _, readErr := s.Read(); readErr != nil {
-			return pipeline.Dependencies{}, nil, fmt.Errorf("soul: %w", err)
+			return pipeline.Dependencies{}, nil, nil, fmt.Errorf("soul: %w", err)
 		}
 	}
 	log.Printf("[bootstrap] soul initialized: %s", cfg.AgentName)
@@ -257,7 +258,7 @@ func bootstrap(cfg Config) (pipeline.Dependencies, *reflection.Engine, error) {
 	// LLM provider — universal, supports any OpenAI-compatible endpoint.
 	llm, providerName, err := createLLMProvider(cfg)
 	if err != nil {
-		return pipeline.Dependencies{}, nil, err
+		return pipeline.Dependencies{}, nil, nil, err
 	}
 	log.Printf("[bootstrap] LLM: %s", providerName)
 
@@ -265,14 +266,14 @@ func bootstrap(cfg Config) (pipeline.Dependencies, *reflection.Engine, error) {
 	dbPath := filepath.Join(cfg.DataDir, "overhuman.db")
 	ltm, err := memory.NewLongTermMemory(dbPath)
 	if err != nil {
-		return pipeline.Dependencies{}, nil, fmt.Errorf("long-term memory: %w", err)
+		return pipeline.Dependencies{}, nil, nil, fmt.Errorf("long-term memory: %w", err)
 	}
 	log.Printf("[bootstrap] long-term memory: %s", dbPath)
 
 	pt, err := memory.NewPatternTracker(ltm.DB())
 	if err != nil {
 		ltm.Close()
-		return pipeline.Dependencies{}, nil, fmt.Errorf("pattern tracker: %w", err)
+		return pipeline.Dependencies{}, nil, nil, fmt.Errorf("pattern tracker: %w", err)
 	}
 	log.Printf("[bootstrap] pattern tracker ready")
 
@@ -304,8 +305,11 @@ func bootstrap(cfg Config) (pipeline.Dependencies, *reflection.Engine, error) {
 		Reflection:    reflEngine,
 	}
 
+	// UI generator — separate LLM call for visual representation.
+	uiGen := genui.NewUIGenerator(llm, router)
+
 	log.Printf("[bootstrap] all subsystems ready")
-	return deps, reflEngine, nil
+	return deps, reflEngine, uiGen, nil
 }
 
 // createLLMProvider creates the appropriate LLM provider based on config.
@@ -420,13 +424,16 @@ func createNamedProvider(cfg Config) (brain.LLMProvider, string, error) {
 // runCLI starts the agent in interactive CLI mode.
 func runCLI() {
 	cfg := loadConfig()
-	deps, _, err := bootstrap(cfg)
+	deps, _, uiGen, err := bootstrap(cfg)
 	if err != nil {
 		log.Fatalf("[cli] bootstrap: %v", err)
 	}
 
 	p := pipeline.New(deps)
 	cli := senses.NewCLISense(os.Stdin, os.Stdout)
+	uiRenderer := genui.NewCLIRenderer(os.Stdout, os.Stdin)
+	uiReflection := genui.NewReflectionStore()
+	caps := genui.CLICapabilities()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -467,17 +474,46 @@ func runCLI() {
 				continue
 			}
 
-			output := fmt.Sprintf("[task: %s | quality: %.0f%% | cost: $%.4f | time: %dms]\n%s",
-				result.TaskID,
-				result.QualityScore*100,
-				result.CostUSD,
-				result.ElapsedMs,
-				result.Result,
-			)
-			if result.AutomationTriggered {
-				output += "\n⚡ Pattern detected — automation triggered"
+			// Build ThoughtLog from pipeline stage logs.
+			var thought *genui.ThoughtLog
+			if len(result.StageLogs) > 0 {
+				stages := make([]genui.ThoughtStage, len(result.StageLogs))
+				for i, sl := range result.StageLogs {
+					stages[i] = genui.ThoughtStage{
+						Number:  sl.Number,
+						Name:    sl.Name,
+						Summary: sl.Summary,
+						DurMs:   sl.DurMs,
+					}
+				}
+				thought = genui.BuildThoughtLog(stages)
+				thought.TotalCost = result.CostUSD
 			}
-			cli.Send(ctx, "", output)
+
+			// Generate UI (separate LLM call).
+			hints := uiReflection.BuildHints(result.Fingerprint)
+			ui, uiErr := uiGen.GenerateWithThought(ctx, *result, caps, thought, hints)
+			if uiErr != nil {
+				// Fallback: plain text output.
+				output := fmt.Sprintf("[task: %s | quality: %.0f%% | cost: $%.4f | time: %dms]\n%s",
+					result.TaskID,
+					result.QualityScore*100,
+					result.CostUSD,
+					result.ElapsedMs,
+					result.Result,
+				)
+				if result.AutomationTriggered {
+					output += "\n⚡ Pattern detected — automation triggered"
+				}
+				cli.Send(ctx, "", output)
+				continue
+			}
+
+			// Render generated UI.
+			if renderErr := uiRenderer.Render(ui); renderErr != nil {
+				cli.Send(ctx, "", result.Result) // ultimate fallback
+			}
+			fmt.Println() // newline after UI
 		}
 	}
 }
@@ -485,7 +521,7 @@ func runCLI() {
 // runDaemon starts the full daemon with HTTP API and heartbeat timer.
 func runDaemon() {
 	cfg := loadConfig()
-	deps, _, err := bootstrap(cfg)
+	deps, _, _, err := bootstrap(cfg)
 	if err != nil {
 		log.Fatalf("[daemon] bootstrap: %v", err)
 	}

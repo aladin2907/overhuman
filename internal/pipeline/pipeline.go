@@ -20,16 +20,25 @@ import (
 	"github.com/overhuman/overhuman/internal/versioning"
 )
 
+// StageLog records timing for one pipeline stage.
+type StageLog struct {
+	Number  int    `json:"number"`
+	Name    string `json:"name"`
+	Summary string `json:"summary,omitempty"`
+	DurMs   int64  `json:"duration_ms"`
+}
+
 // RunResult holds the output of a full pipeline run.
 type RunResult struct {
-	TaskID           string  `json:"task_id"`
-	Success          bool    `json:"success"`
-	Result           string  `json:"result"`
-	QualityScore     float64 `json:"quality_score"`
-	CostUSD          float64 `json:"cost_usd"`
-	ElapsedMs        int64   `json:"elapsed_ms"`
-	Fingerprint      string  `json:"fingerprint,omitempty"`
-	AutomationTriggered bool `json:"automation_triggered"`
+	TaskID              string     `json:"task_id"`
+	Success             bool       `json:"success"`
+	Result              string     `json:"result"`
+	QualityScore        float64    `json:"quality_score"`
+	CostUSD             float64    `json:"cost_usd"`
+	ElapsedMs           int64      `json:"elapsed_ms"`
+	Fingerprint         string     `json:"fingerprint,omitempty"`
+	AutomationTriggered bool       `json:"automation_triggered"`
+	StageLogs           []StageLog `json:"stage_logs,omitempty"`
 }
 
 // Dependencies holds all subsystem references the pipeline needs.
@@ -89,6 +98,7 @@ func New(deps Dependencies) *Pipeline {
 func (p *Pipeline) Run(ctx context.Context, input senses.UnifiedInput) (*RunResult, error) {
 	start := time.Now()
 	var totalCost float64
+	var stageLogs []StageLog
 
 	// --- Pre-stage: Input sanitization ---
 	if p.deps.Sanitizer != nil {
@@ -113,69 +123,93 @@ func (p *Pipeline) Run(ctx context.Context, input senses.UnifiedInput) (*RunResu
 	}
 
 	// --- Stage 1: Intake ---
+	stageStart := time.Now()
 	taskSpec := p.intake(input)
 	p.logPipeline(1, "intake", "task_id", taskSpec.ID)
 	p.incrementMetric("pipeline.runs")
+	stageLogs = append(stageLogs, StageLog{Number: 1, Name: "intake", Summary: "task_id=" + taskSpec.ID, DurMs: time.Since(stageStart).Milliseconds()})
 
 	// --- Stage 2: Clarification ---
+	stageStart = time.Now()
 	if err := p.clarify(ctx, taskSpec, &totalCost); err != nil {
 		p.incrementMetric("pipeline.errors")
-		return p.failResult(taskSpec, start, totalCost, err), err
+		stageLogs = append(stageLogs, StageLog{Number: 2, Name: "clarify", Summary: "error", DurMs: time.Since(stageStart).Milliseconds()})
+		return p.failResult(taskSpec, start, totalCost, err, stageLogs), err
 	}
 	p.logPipeline(2, "clarified", "version", taskSpec.Version)
 	p.microCheck(ctx, taskSpec, reflection.StepClarify, taskSpec.Context)
+	stageLogs = append(stageLogs, StageLog{Number: 2, Name: "clarify", DurMs: time.Since(stageStart).Milliseconds()})
 
 	// --- Stage 3: Planning ---
+	stageStart = time.Now()
 	if err := p.plan(ctx, taskSpec, &totalCost); err != nil {
 		p.incrementMetric("pipeline.errors")
-		return p.failResult(taskSpec, start, totalCost, err), err
+		stageLogs = append(stageLogs, StageLog{Number: 3, Name: "plan", Summary: "error", DurMs: time.Since(stageStart).Milliseconds()})
+		return p.failResult(taskSpec, start, totalCost, err, stageLogs), err
 	}
 	p.logPipeline(3, "planned", "subtasks", len(taskSpec.Subtasks))
+	stageLogs = append(stageLogs, StageLog{Number: 3, Name: "plan", Summary: fmt.Sprintf("subtasks=%d", len(taskSpec.Subtasks)), DurMs: time.Since(stageStart).Milliseconds()})
 
 	// --- Stage 4: Agent Selection ---
+	stageStart = time.Now()
 	p.selectAgent(taskSpec)
 	p.logPipeline(4, "agent selection done")
+	stageLogs = append(stageLogs, StageLog{Number: 4, Name: "agent_selection", DurMs: time.Since(stageStart).Milliseconds()})
 
 	// --- Stage 5: Execution ---
+	stageStart = time.Now()
 	result, err := p.execute(ctx, taskSpec, &totalCost)
 	if err != nil {
 		p.incrementMetric("pipeline.errors")
-		return p.failResult(taskSpec, start, totalCost, err), err
+		stageLogs = append(stageLogs, StageLog{Number: 5, Name: "execute", Summary: "error", DurMs: time.Since(stageStart).Milliseconds()})
+		return p.failResult(taskSpec, start, totalCost, err, stageLogs), err
 	}
 	p.logPipeline(5, "executed")
 	p.microCheck(ctx, taskSpec, reflection.StepExecute, result)
+	stageLogs = append(stageLogs, StageLog{Number: 5, Name: "execute", DurMs: time.Since(stageStart).Milliseconds()})
 
 	// --- Stage 6: Review ---
+	stageStart = time.Now()
 	quality, reviewNotes, err := p.review(ctx, taskSpec, result, &totalCost)
 	if err != nil {
 		p.incrementMetric("pipeline.errors")
-		return p.failResult(taskSpec, start, totalCost, err), err
+		stageLogs = append(stageLogs, StageLog{Number: 6, Name: "review", Summary: "error", DurMs: time.Since(stageStart).Milliseconds()})
+		return p.failResult(taskSpec, start, totalCost, err, stageLogs), err
 	}
 	taskSpec.QualityScore = quality
 	taskSpec.ReviewNotes = reviewNotes
 	p.logPipeline(6, "reviewed", "quality", quality)
 	p.microCheck(ctx, taskSpec, reflection.StepReview, reviewNotes)
+	stageLogs = append(stageLogs, StageLog{Number: 6, Name: "review", Summary: fmt.Sprintf("quality=%.2f", quality), DurMs: time.Since(stageStart).Milliseconds()})
 
 	// --- Stage 7: Memory Update ---
+	stageStart = time.Now()
 	p.updateMemory(taskSpec, result)
 	p.logPipeline(7, "memory updated")
+	stageLogs = append(stageLogs, StageLog{Number: 7, Name: "memory_update", DurMs: time.Since(stageStart).Milliseconds()})
 
 	// --- Stage 8: Pattern Tracking ---
+	stageStart = time.Now()
 	automatable := p.trackPattern(taskSpec)
 	p.logPipeline(8, "pattern tracked", "automatable", automatable)
 	p.recordMetric(observability.MetricPatterns, boolToFloat(automatable), observability.Labels{"fingerprint": taskSpec.Fingerprint})
+	stageLogs = append(stageLogs, StageLog{Number: 8, Name: "pattern_tracking", Summary: fmt.Sprintf("automatable=%v", automatable), DurMs: time.Since(stageStart).Milliseconds()})
 
 	// --- Stage 9: Reflection (meso-loop) ---
+	stageStart = time.Now()
 	if err := p.reflect(ctx, taskSpec, quality, &totalCost); err != nil {
 		p.logWarn("reflection error (non-fatal)", "error", err.Error())
 	} else {
 		p.logPipeline(9, "reflected")
 	}
 	p.recordMetric(observability.MetricReflection, quality, observability.Labels{"task_id": taskSpec.ID})
+	stageLogs = append(stageLogs, StageLog{Number: 9, Name: "reflection", DurMs: time.Since(stageStart).Milliseconds()})
 
 	// --- Stage 10: Goal Update ---
+	stageStart = time.Now()
 	p.updateGoals(taskSpec, automatable)
 	p.logPipeline(10, "goals updated")
+	stageLogs = append(stageLogs, StageLog{Number: 10, Name: "goal_update", DurMs: time.Since(stageStart).Milliseconds()})
 
 	// --- Phase 3: Post-run hooks ---
 	p.evolve(taskSpec, quality)
@@ -203,6 +237,7 @@ func (p *Pipeline) Run(ctx context.Context, input senses.UnifiedInput) (*RunResu
 		ElapsedMs:           time.Since(start).Milliseconds(),
 		Fingerprint:         taskSpec.Fingerprint,
 		AutomationTriggered: automatable,
+		StageLogs:           stageLogs,
 	}, nil
 }
 
@@ -793,7 +828,7 @@ func min(a, b int) int {
 	return b
 }
 
-func (p *Pipeline) failResult(ts *TaskSpec, start time.Time, cost float64, err error) *RunResult {
+func (p *Pipeline) failResult(ts *TaskSpec, start time.Time, cost float64, err error, stageLogs []StageLog) *RunResult {
 	ts.Advance(TaskStatusFailed)
 	p.recordMetric(observability.MetricErrors, 1, observability.Labels{"task_id": ts.ID})
 	return &RunResult{
@@ -802,5 +837,6 @@ func (p *Pipeline) failResult(ts *TaskSpec, start time.Time, cost float64, err e
 		Result:    err.Error(),
 		CostUSD:   cost,
 		ElapsedMs: time.Since(start).Milliseconds(),
+		StageLogs: stageLogs,
 	}
 }
