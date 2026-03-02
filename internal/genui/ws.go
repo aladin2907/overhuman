@@ -13,12 +13,13 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
 
 const (
-	wsGUID          = "258EAFA5-E914-47DA-95CA-5AB9CAD40B11"
+	wsGUID          = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 	wsOpText        = 1
 	wsOpClose       = 8
 	wsOpPing        = 9
@@ -43,6 +44,7 @@ type WSServer struct {
 	lastUI   *WSMessage // cached last UI for reconnect
 	onMsg    func(connID string, msg *WSMessage)
 	addr     string
+	ctx      context.Context
 	srv      *http.Server
 	listener net.Listener
 }
@@ -62,12 +64,23 @@ func (s *WSServer) OnMessage(fn func(connID string, msg *WSMessage)) {
 	s.onMsg = fn
 }
 
-// Start launches the WebSocket server. Blocks until ctx is cancelled.
-func (s *WSServer) Start(ctx context.Context) error {
-	mux := http.NewServeMux()
+// RegisterRoutes registers the /ws handler on an external ServeMux.
+// This allows the WebSocket endpoint to share a port with other HTTP handlers
+// (e.g., the kiosk server), which avoids cross-port WebSocket issues.
+func (s *WSServer) RegisterRoutes(mux *http.ServeMux, ctx context.Context) {
+	s.mu.Lock()
+	s.ctx = ctx
+	s.mu.Unlock()
+
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		s.handleUpgrade(w, r, ctx)
 	})
+}
+
+// Start launches the WebSocket server on its own port. Blocks until ctx is cancelled.
+func (s *WSServer) Start(ctx context.Context) error {
+	mux := http.NewServeMux()
+	s.RegisterRoutes(mux, ctx)
 
 	s.mu.Lock()
 	s.srv = &http.Server{
@@ -170,7 +183,7 @@ func (s *WSServer) Stop() error {
 
 // handleUpgrade performs the WebSocket handshake and starts message loop.
 func (s *WSServer) handleUpgrade(w http.ResponseWriter, r *http.Request, ctx context.Context) {
-	if r.Header.Get("Upgrade") != "websocket" {
+	if !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
 		http.Error(w, "expected websocket upgrade", http.StatusBadRequest)
 		return
 	}
@@ -186,7 +199,13 @@ func (s *WSServer) handleUpgrade(w http.ResponseWriter, r *http.Request, ctx con
 	h.Write([]byte(key + wsGUID))
 	acceptKey := base64.StdEncoding.EncodeToString(h.Sum(nil))
 
-	// Hijack the connection.
+	// Write 101 response via http.ResponseWriter before hijacking.
+	w.Header().Set("Upgrade", "websocket")
+	w.Header().Set("Connection", "Upgrade")
+	w.Header().Set("Sec-WebSocket-Accept", acceptKey)
+	w.WriteHeader(http.StatusSwitchingProtocols)
+
+	// Now hijack to get the raw connection for WebSocket framing.
 	hj, ok := w.(http.Hijacker)
 	if !ok {
 		http.Error(w, "server doesn't support hijacking", http.StatusInternalServerError)
@@ -194,19 +213,15 @@ func (s *WSServer) handleUpgrade(w http.ResponseWriter, r *http.Request, ctx con
 	}
 	conn, bufrw, err := hj.Hijack()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Printf("[ws] hijack error: %v", err)
 		return
 	}
 
-	// Send upgrade response.
-	resp := "HTTP/1.1 101 Switching Protocols\r\n" +
-		"Upgrade: websocket\r\n" +
-		"Connection: Upgrade\r\n" +
-		"Sec-WebSocket-Accept: " + acceptKey + "\r\n\r\n"
-	bufrw.WriteString(resp)
-	bufrw.Flush()
+	// Clear any deadlines from http.Server.
+	conn.SetReadDeadline(time.Time{})
+	conn.SetWriteDeadline(time.Time{})
 
-	// Register client.
+	// Register client — use the bufrw from Hijack for frame I/O.
 	connID := fmt.Sprintf("ws_%d", time.Now().UnixNano())
 	wsConn := &WSConn{
 		conn: conn,
@@ -227,8 +242,8 @@ func (s *WSServer) handleUpgrade(w http.ResponseWriter, r *http.Request, ctx con
 		wsConn.writeText(data)
 	}
 
-	// Start read loop.
-	go s.readLoop(wsConn, ctx)
+	// Run read loop in current goroutine (handler blocks until disconnect).
+	s.readLoop(wsConn, ctx)
 }
 
 // readLoop reads messages from a WebSocket connection.

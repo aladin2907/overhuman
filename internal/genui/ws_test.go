@@ -512,7 +512,7 @@ func dialWS(t *testing.T, addr string) *testWSClient {
 
 	// Verify Sec-WebSocket-Accept.
 	h := sha1.New()
-	h.Write([]byte(key + "258EAFA5-E914-47DA-95CA-5AB9CAD40B11"))
+	h.Write([]byte(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))
 	expectedAccept := base64.StdEncoding.EncodeToString(h.Sum(nil))
 	if !strings.Contains(resp, expectedAccept) {
 		t.Fatalf("missing correct Sec-WebSocket-Accept in response")

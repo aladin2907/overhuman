@@ -626,17 +626,20 @@ func runDaemon() {
 		}
 	})
 
+	// Also start standalone WS server on derived port for non-browser clients.
 	go func() {
-		log.Printf("[daemon] WebSocket UI server on %s", wsAddr)
+		log.Printf("[daemon] WebSocket also on %s (standalone)", wsAddr)
 		if err := wsSrv.Start(ctx); err != nil && ctx.Err() == nil {
 			log.Printf("[daemon] WS error: %v", err)
 		}
 	}()
 
 	// Kiosk web server on derived port (API port + 2).
+	// WebSocket /ws is registered on the SAME mux as kiosk to avoid
+	// cross-port issues with browsers (same-origin policy for WS).
 	kioskAddr := deriveKioskAddr(cfg.APIAddr)
 	kioskCfg := genui.KioskConfig{
-		WSAddr:        wsAddr,
+		WSAddr:        kioskAddr, // WS on same port as kiosk
 		Title:         cfg.AgentName,
 		DarkMode:      true,
 		ShowSidebar:   true,
@@ -646,6 +649,7 @@ func runDaemon() {
 	kioskMux := http.NewServeMux()
 	kioskHandler.RegisterRoutes(kioskMux)
 	uiAPIHandler.RegisterRoutes(kioskMux)
+	wsSrv.RegisterRoutes(kioskMux, ctx) // WS on kiosk port
 
 	kioskServer := &http.Server{
 		Addr:    kioskAddr,
