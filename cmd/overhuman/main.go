@@ -467,6 +467,9 @@ func runCLI() {
 
 	out := make(chan *senses.UnifiedInput, 10)
 
+	// CLI session ID — one per process lifetime for conversation continuity.
+	cliSessionID := fmt.Sprintf("cli_%d", time.Now().UnixNano())
+
 	// Start CLI sense in background.
 	go func() {
 		if err := cli.Start(ctx, out); err != nil && ctx.Err() == nil {
@@ -485,6 +488,7 @@ func runCLI() {
 			if !ok {
 				return
 			}
+			input.SessionID = cliSessionID
 
 			result, err := p.Run(ctx, *input)
 			if err != nil {
@@ -598,6 +602,7 @@ func runDaemon() {
 			input := senses.NewUnifiedInput(senses.SourceAPI, payload.Text)
 			input.ResponseChannel = "ws"
 			input.CorrelationID = connID
+			input.SessionID = "ws_" + connID
 			select {
 			case out <- input:
 			default:

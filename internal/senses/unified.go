@@ -127,6 +127,7 @@ type UnifiedInput struct {
 	Priority        Priority     `json:"priority"`
 	CorrelationID   string       `json:"correlation_id,omitempty"`
 	ResponseChannel string       `json:"response_channel,omitempty"`
+	SessionID       string       `json:"session_id,omitempty"`
 }
 
 // ---------------------------------------------------------------------------

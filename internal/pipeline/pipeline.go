@@ -251,6 +251,7 @@ func (p *Pipeline) intake(input senses.UnifiedInput) *TaskSpec {
 	)
 	ts.SourceChannel = string(input.SourceType)
 	ts.SourceUserID = input.SourceMeta.Sender
+	ts.SessionID = input.SessionID
 	return ts
 }
 
@@ -459,10 +460,11 @@ func (p *Pipeline) executeLLM(ctx context.Context, ts *TaskSpec, cost *float64) 
 
 	soulContent, _ := p.deps.Soul.Read()
 
-	recentEntries := p.deps.ShortTerm.GetRecent(5)
 	var history []brain.Message
-	for _, e := range recentEntries {
-		history = append(history, brain.Message{Role: e.Role, Content: e.Content})
+	if ts.SessionID != "" {
+		for _, e := range p.deps.ShortTerm.GetRecentBySession(5, ts.SessionID) {
+			history = append(history, brain.Message{Role: e.Role, Content: e.Content})
+		}
 	}
 
 	messages := p.deps.Context.Assemble(brain.ContextLayers{
@@ -517,15 +519,15 @@ func (p *Pipeline) review(ctx context.Context, ts *TaskSpec, result string, cost
 
 // Stage 7: Memory Update — store results in short and long term memory.
 func (p *Pipeline) updateMemory(ts *TaskSpec, result string) {
-	// Short-term: add the interaction.
-	p.deps.ShortTerm.Add("user", ts.Goal, map[string]string{
+	// Short-term: add the interaction (scoped to session).
+	p.deps.ShortTerm.AddWithSession("user", ts.Goal, map[string]string{
 		"task_id": ts.ID,
 		"channel": ts.SourceChannel,
-	})
-	p.deps.ShortTerm.Add("assistant", result, map[string]string{
+	}, ts.SessionID)
+	p.deps.ShortTerm.AddWithSession("assistant", result, map[string]string{
 		"task_id": ts.ID,
 		"quality": fmt.Sprintf("%.2f", ts.QualityScore),
-	})
+	}, ts.SessionID)
 
 	// Long-term: store a summary.
 	p.deps.LongTerm.Store(memory.LongTermEntry{

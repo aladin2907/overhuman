@@ -29,10 +29,11 @@ type APISense struct {
 
 // apiRequest is the JSON body for POST /input.
 type apiRequest struct {
-	Payload  string            `json:"payload"`
-	Priority string            `json:"priority,omitempty"` // "LOW", "NORMAL", "HIGH", "CRITICAL"
-	Sender   string            `json:"sender,omitempty"`
-	Metadata map[string]string `json:"metadata,omitempty"`
+	Payload   string            `json:"payload"`
+	Priority  string            `json:"priority,omitempty"` // "LOW", "NORMAL", "HIGH", "CRITICAL"
+	Sender    string            `json:"sender,omitempty"`
+	SessionID string            `json:"session_id,omitempty"`
+	Metadata  map[string]string `json:"metadata,omitempty"`
 }
 
 // apiResponse is the JSON body returned for POST /input.
@@ -211,8 +212,9 @@ func (a *APISense) buildInput(req apiRequest) *UnifiedInput {
 			Sender:    sender,
 			Extra:     req.Metadata,
 		},
-		Payload:  req.Payload,
-		Priority: priority,
+		Payload:   req.Payload,
+		Priority:  priority,
+		SessionID: req.SessionID,
 	}
 }
 

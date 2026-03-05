@@ -131,6 +131,69 @@ func TestShortTermMemory_DefaultMaxSize(t *testing.T) {
 	}
 }
 
+func TestShortTermMemory_AddWithSession(t *testing.T) {
+	stm := NewShortTermMemory(20)
+
+	stm.AddWithSession("user", "hello", nil, "sess-A")
+	stm.AddWithSession("assistant", "hi", nil, "sess-A")
+	stm.AddWithSession("user", "unrelated", nil, "sess-B")
+	stm.AddWithSession("assistant", "stuff", nil, "sess-B")
+	stm.AddWithSession("user", "follow-up", nil, "sess-A")
+
+	if stm.Len() != 5 {
+		t.Fatalf("expected Len()=5, got %d", stm.Len())
+	}
+
+	// GetRecentBySession should only return sess-A entries.
+	recent := stm.GetRecentBySession(10, "sess-A")
+	if len(recent) != 3 {
+		t.Fatalf("expected 3 entries for sess-A, got %d", len(recent))
+	}
+	if recent[0].Content != "hello" || recent[1].Content != "hi" || recent[2].Content != "follow-up" {
+		t.Errorf("unexpected order: %q, %q, %q", recent[0].Content, recent[1].Content, recent[2].Content)
+	}
+
+	// GetRecentBySession with limit.
+	recent2 := stm.GetRecentBySession(1, "sess-A")
+	if len(recent2) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(recent2))
+	}
+	if recent2[0].Content != "follow-up" {
+		t.Errorf("expected most recent sess-A entry, got %q", recent2[0].Content)
+	}
+
+	// Empty session returns nil.
+	if got := stm.GetRecentBySession(5, ""); got != nil {
+		t.Errorf("expected nil for empty session, got %d entries", len(got))
+	}
+
+	// Non-existent session returns nil.
+	if got := stm.GetRecentBySession(5, "sess-C"); len(got) != 0 {
+		t.Errorf("expected 0 entries for sess-C, got %d", len(got))
+	}
+}
+
+func TestShortTermMemory_SessionIsolation(t *testing.T) {
+	stm := NewShortTermMemory(10)
+
+	// Simulate two independent API requests.
+	stm.AddWithSession("user", "task1-goal", nil, "")
+	stm.AddWithSession("assistant", "task1-result", nil, "")
+	stm.AddWithSession("user", "task2-goal", nil, "")
+
+	// Empty session should return nothing (isolation).
+	got := stm.GetRecentBySession(5, "")
+	if got != nil {
+		t.Errorf("expected nil for empty session, got %d entries", len(got))
+	}
+
+	// But GetRecent (unfiltered) still works for backward compat.
+	all := stm.GetRecent(5)
+	if len(all) != 3 {
+		t.Errorf("expected 3 entries from GetRecent, got %d", len(all))
+	}
+}
+
 // ---------------------------------------------------------------------------
 // LongTermMemory tests
 // ---------------------------------------------------------------------------

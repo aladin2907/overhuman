@@ -48,6 +48,7 @@ type TaskSpec struct {
 	// Source tracking.
 	SourceChannel string `json:"source_channel,omitempty"` // Which sense channel this came from
 	SourceUserID  string `json:"source_user_id,omitempty"`
+	SessionID     string `json:"session_id,omitempty"` // Groups related interactions for short-term memory
 }
 
 // NewTaskSpec creates a draft TaskSpec from a goal string.

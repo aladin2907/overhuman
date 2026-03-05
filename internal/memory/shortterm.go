@@ -14,6 +14,7 @@ type MemoryEntry struct {
 	Content   string            `json:"content"`
 	Metadata  map[string]string `json:"metadata,omitempty"`
 	Timestamp time.Time         `json:"timestamp"`
+	SessionID string            `json:"session_id,omitempty"`
 }
 
 // ShortTermMemory is a thread-safe ring buffer that holds the last N interactions.
@@ -39,6 +40,11 @@ func NewShortTermMemory(maxSize int) *ShortTermMemory {
 
 // Add inserts a new memory entry into the ring buffer.
 func (s *ShortTermMemory) Add(role, content string, metadata map[string]string) {
+	s.AddWithSession(role, content, metadata, "")
+}
+
+// AddWithSession inserts a new memory entry tagged with a session ID.
+func (s *ShortTermMemory) AddWithSession(role, content string, metadata map[string]string, sessionID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -48,6 +54,7 @@ func (s *ShortTermMemory) Add(role, content string, metadata map[string]string) 
 		Content:   content,
 		Metadata:  metadata,
 		Timestamp: time.Now(),
+		SessionID: sessionID,
 	}
 
 	s.entries[s.head] = entry
@@ -76,6 +83,32 @@ func (s *ShortTermMemory) GetRecent(n int) []MemoryEntry {
 	for i := 0; i < n; i++ {
 		idx := (s.head - n + i + s.maxSize) % s.maxSize
 		result[i] = s.entries[idx]
+	}
+	return result
+}
+
+// GetRecentBySession returns the most recent n entries matching the given
+// sessionID in chronological order. If sessionID is empty, no entries match.
+func (s *ShortTermMemory) GetRecentBySession(n int, sessionID string) []MemoryEntry {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if n <= 0 || sessionID == "" || s.count == 0 {
+		return nil
+	}
+
+	// Walk backwards from most recent, collecting matches.
+	var result []MemoryEntry
+	for i := 0; i < s.count && len(result) < n; i++ {
+		idx := (s.head - 1 - i + s.maxSize) % s.maxSize
+		if s.entries[idx].SessionID == sessionID {
+			result = append(result, s.entries[idx])
+		}
+	}
+
+	// Reverse to chronological order.
+	for i, j := 0, len(result)-1; i < j; i, j = i+1, j-1 {
+		result[i], result[j] = result[j], result[i]
 	}
 	return result
 }
