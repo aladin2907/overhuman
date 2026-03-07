@@ -722,6 +722,13 @@ html, body {
           'document.dispatchEvent(evt);' +
         '}' +
       '});' +
+      // Wrap tables in scrollable containers (responsive tables pattern)
+      'document.querySelectorAll("table").forEach(function(t) {' +
+        'var w = document.createElement("div");' +
+        'w.className = "table-scroll";' +
+        't.parentNode.insertBefore(w, t);' +
+        'w.appendChild(t);' +
+      '});' +
       '<\/script>';
 
     var fullHTML = '<!DOCTYPE html><html><head>' +
@@ -729,7 +736,15 @@ html, body {
       '<meta http-equiv="Content-Security-Policy" content="default-src ' + "'none'" + '; style-src ' + "'unsafe-inline'" + '; script-src ' + "'unsafe-inline'" + '; img-src data:;">' +
       '<meta name="viewport" content="width=device-width, initial-scale=1">' +
       '<style>' +
-        'html, body { margin: 0; padding: 0; background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }' +
+        '*, *::before, *::after { box-sizing: border-box; }' +
+        'html { height: 100%; overflow-x: hidden; overflow-y: auto; -webkit-text-size-adjust: 100%; }' +
+        'body { margin: 0; padding: clamp(8px, 3vw, 24px); min-height: 100%; max-width: 100vw; overflow-x: hidden; background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow-wrap: break-word; word-break: break-word; }' +
+        'h1, h2, h3 { font-size: clamp(1.1rem, 4vw, 2rem) !important; line-height: 1.2; overflow-wrap: break-word; }' +
+        'img, svg, video, canvas { max-width: 100%; height: auto; }' +
+        'table { border-collapse: collapse; }' +
+        '.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }' +
+        'td, th { padding: 6px 8px; text-align: left; white-space: normal; word-break: break-word; }' +
+        'pre, code { max-width: 100%; overflow-x: auto; white-space: pre-wrap; }' +
         'a { color: #00d4aa; }' +
         '[data-action] { cursor: pointer; }' +
       '</style>' +
