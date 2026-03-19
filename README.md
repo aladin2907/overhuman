@@ -95,6 +95,10 @@ The Kiosk is a full-screen web app designed for a dedicated screen — tablet on
 | **Sound engine** | Synthesized audio feedback via Web Audio API (zero external files) |
 | **CRT mode** | Scanline overlay + text glow for the retro aesthetic |
 
+<p align="center">
+  <img src="docs/assets/kiosk-screenshot.png" alt="Kiosk UI — companion display with pipeline HUD, sidebar, and neural canvas" width="800">
+</p>
+
 > [!TIP]
 > Device-adaptive rendering: phone strips down to essentials (no HUD, overlay sidebar), tablet becomes a control pad, desktop is a full command center.
 
@@ -162,6 +166,21 @@ On first run, `overhuman cli` will automatically prompt the setup wizard if no k
 > ```bash
 > LLM_PROVIDER=ollama ./overhuman cli
 > ```
+
+### Try it
+
+```bash
+# Start the daemon
+./overhuman start
+
+# Send a task (sync — waits for response)
+curl -s http://localhost:9090/input/sync \
+  -H "Content-Type: application/json" \
+  -d '{"payload": "What is the capital of France?"}'
+
+# Open the Kiosk companion display
+open http://localhost:9092
+```
 
 ---
 
@@ -381,5 +400,10 @@ All tests run with a mock LLM server — no API keys needed.
 ---
 
 <p align="center">
-  <sub>MIT License · Built with Go · 3 dependencies · Zero JS frameworks</sub>
+  <img src="https://img.shields.io/badge/Built_with-Go-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Built with Go">
+  <img src="https://img.shields.io/badge/AI-Claude-cc785c?style=flat-square&logo=anthropic&logoColor=white" alt="Built with Claude">
+  <img src="https://img.shields.io/badge/JS_Frameworks-0-brightgreen?style=flat-square" alt="Zero JS Frameworks">
+</p>
+<p align="center">
+  <sub>MIT License · <a href="CONTRIBUTING.md">Contributing</a></sub>
 </p>

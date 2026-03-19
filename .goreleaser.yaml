@@ -40,7 +40,7 @@ changelog:
 
 release:
   github:
-    owner: overhuman
+    owner: aladin2907
     name: overhuman
   draft: false
   prerelease: auto
