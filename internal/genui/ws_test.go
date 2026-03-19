@@ -191,6 +191,118 @@ func TestParseUIFeedbackPayload(t *testing.T) {
 	}
 }
 
+// --- Pipeline Stage Message Tests ---
+
+func TestNewPipelineStageMessage(t *testing.T) {
+	msg, err := NewPipelineStageMessage("task_42", 3, "plan", "started", "", 0)
+	if err != nil {
+		t.Fatalf("NewPipelineStageMessage: %v", err)
+	}
+	if msg.Type != WSMsgPipelineStage {
+		t.Errorf("Type = %q, want pipeline_stage", msg.Type)
+	}
+
+	var p WSPipelineStagePayload
+	if err := json.Unmarshal(msg.Payload, &p); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	if p.TaskID != "task_42" {
+		t.Errorf("TaskID = %q, want task_42", p.TaskID)
+	}
+	if p.Stage != 3 {
+		t.Errorf("Stage = %d, want 3", p.Stage)
+	}
+	if p.Name != "plan" {
+		t.Errorf("Name = %q, want plan", p.Name)
+	}
+	if p.Status != "started" {
+		t.Errorf("Status = %q, want started", p.Status)
+	}
+}
+
+func TestNewPipelineStageMessage_Completed(t *testing.T) {
+	msg, err := NewPipelineStageMessage("task_99", 7, "present", "completed", "UI generated", 1500)
+	if err != nil {
+		t.Fatalf("NewPipelineStageMessage: %v", err)
+	}
+
+	var p WSPipelineStagePayload
+	json.Unmarshal(msg.Payload, &p)
+	if p.Summary != "UI generated" {
+		t.Errorf("Summary = %q, want 'UI generated'", p.Summary)
+	}
+	if p.DurMs != 1500 {
+		t.Errorf("DurMs = %d, want 1500", p.DurMs)
+	}
+}
+
+func TestNewPipelineStageMessage_Error(t *testing.T) {
+	msg, err := NewPipelineStageMessage("task_err", 5, "execute", "error", "LLM timeout", 3000)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var p WSPipelineStagePayload
+	json.Unmarshal(msg.Payload, &p)
+	if p.Status != "error" {
+		t.Errorf("Status = %q, want error", p.Status)
+	}
+	if p.Stage != 5 {
+		t.Errorf("Stage = %d, want 5", p.Stage)
+	}
+}
+
+func TestPipelineStageMessage_RoundTrip(t *testing.T) {
+	msg, _ := NewPipelineStageMessage("task_rt", 10, "go_live", "completed", "done", 500)
+	data, err := EncodeWSMessage(msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	parsed, err := ParseWSMessage(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Type != WSMsgPipelineStage {
+		t.Errorf("round-trip Type = %q, want pipeline_stage", parsed.Type)
+	}
+
+	var p WSPipelineStagePayload
+	json.Unmarshal(parsed.Payload, &p)
+	if p.TaskID != "task_rt" || p.Stage != 10 || p.Name != "go_live" {
+		t.Errorf("round-trip payload mismatch: %+v", p)
+	}
+}
+
+func TestWSMsgPipelineStage_Constant(t *testing.T) {
+	if WSMsgPipelineStage != "pipeline_stage" {
+		t.Errorf("WSMsgPipelineStage = %q, want pipeline_stage", WSMsgPipelineStage)
+	}
+}
+
+func TestPipelineStagePayload_AllStages(t *testing.T) {
+	stages := []struct {
+		n    int
+		name string
+	}{
+		{1, "intake"}, {2, "clarify"}, {3, "plan"}, {4, "agent"},
+		{5, "execute"}, {6, "review"}, {7, "present"}, {8, "meta"},
+		{9, "reflect"}, {10, "go_live"},
+	}
+	for _, s := range stages {
+		msg, err := NewPipelineStageMessage("t1", s.n, s.name, "started", "", 0)
+		if err != nil {
+			t.Errorf("stage %d (%s): %v", s.n, s.name, err)
+			continue
+		}
+		var p WSPipelineStagePayload
+		json.Unmarshal(msg.Payload, &p)
+		if p.Stage != s.n || p.Name != s.name {
+			t.Errorf("stage %d: got stage=%d name=%q", s.n, p.Stage, p.Name)
+		}
+	}
+}
+
 // --- Frame I/O Tests ---
 
 func TestWriteReadFrame_Short(t *testing.T) {

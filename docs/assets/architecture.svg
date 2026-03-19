@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 260" fill="none">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="900" y2="260" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#050a12"/>
+      <stop offset="100%" stop-color="#0d1117"/>
+    </linearGradient>
+    <filter id="g2">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="900" height="260" fill="url(#bg2)" rx="10"/>
+
+  <!-- Input box -->
+  <g transform="translate(50, 40)">
+    <rect width="180" height="180" rx="10" fill="none" stroke="#30363d" stroke-width="1.5"/>
+    <rect width="180" height="180" rx="10" fill="#0d1117" opacity="0.6"/>
+    <text x="90" y="28" text-anchor="middle" font-family="monospace" font-size="13" font-weight="700" fill="#e6edf3">INPUT</text>
+    <line x1="20" y1="40" x2="160" y2="40" stroke="#30363d" stroke-width="0.5"/>
+
+    <g transform="translate(20, 58)">
+      <circle r="4" cx="4" cy="4" fill="#00d4aa" opacity="0.6"/>
+      <text x="16" y="8" font-family="monospace" font-size="11" fill="#8b949e">CLI</text>
+    </g>
+    <g transform="translate(20, 82)">
+      <circle r="4" cx="4" cy="4" fill="#00d4aa" opacity="0.6"/>
+      <text x="16" y="8" font-family="monospace" font-size="11" fill="#8b949e">Telegram</text>
+    </g>
+    <g transform="translate(20, 106)">
+      <circle r="4" cx="4" cy="4" fill="#00d4aa" opacity="0.6"/>
+      <text x="16" y="8" font-family="monospace" font-size="11" fill="#8b949e">Slack / Discord</text>
+    </g>
+    <g transform="translate(20, 130)">
+      <circle r="4" cx="4" cy="4" fill="#00d4aa" opacity="0.6"/>
+      <text x="16" y="8" font-family="monospace" font-size="11" fill="#8b949e">Email (IMAP)</text>
+    </g>
+    <g transform="translate(20, 154)">
+      <circle r="4" cx="4" cy="4" fill="#00d4aa" opacity="0.6"/>
+      <text x="16" y="8" font-family="monospace" font-size="11" fill="#8b949e">HTTP API / Inbox</text>
+    </g>
+  </g>
+
+  <!-- Arrow 1 -->
+  <g filter="url(#g2)">
+    <line x1="240" y1="130" x2="290" y2="130" stroke="#00d4aa" stroke-width="2"/>
+    <polygon points="290,124 304,130 290,136" fill="#00d4aa"/>
+  </g>
+
+  <!-- Pipeline box -->
+  <g transform="translate(310, 40)">
+    <rect width="280" height="180" rx="10" fill="none" stroke="#00d4aa" stroke-width="1.5" opacity="0.5"/>
+    <rect width="280" height="180" rx="10" fill="#0d1117" opacity="0.6"/>
+    <text x="140" y="28" text-anchor="middle" font-family="monospace" font-size="13" font-weight="700" fill="#00d4aa">10-STAGE PIPELINE</text>
+    <line x1="20" y1="40" x2="260" y2="40" stroke="#00d4aa" stroke-width="0.5" opacity="0.3"/>
+
+    <!-- Pipeline mini-stages in 2 rows -->
+    <g transform="translate(28, 60)">
+      <g><rect width="38" height="22" rx="4" fill="#3fb950" opacity="0.15" stroke="#3fb950" stroke-width="0.8"/><text x="19" y="15" text-anchor="middle" font-family="monospace" font-size="8" fill="#3fb950">IN</text></g>
+      <g transform="translate(46, 0)"><rect width="38" height="22" rx="4" fill="#3fb950" opacity="0.15" stroke="#3fb950" stroke-width="0.8"/><text x="19" y="15" text-anchor="middle" font-family="monospace" font-size="8" fill="#3fb950">CL</text></g>
+      <g transform="translate(92, 0)"><rect width="38" height="22" rx="4" fill="#3fb950" opacity="0.15" stroke="#3fb950" stroke-width="0.8"/><text x="19" y="15" text-anchor="middle" font-family="monospace" font-size="8" fill="#3fb950">PL</text></g>
+      <g transform="translate(138, 0)"><rect width="38" height="22" rx="4" fill="#00d4aa" opacity="0.2" stroke="#00d4aa" stroke-width="1.2"/><text x="19" y="15" text-anchor="middle" font-family="monospace" font-size="8" fill="#00d4aa">AG</text></g>
+      <g transform="translate(184, 0)"><rect width="38" height="22" rx="4" fill="#30363d" opacity="0.3" stroke="#30363d" stroke-width="0.8"/><text x="19" y="15" text-anchor="middle" font-family="monospace" font-size="8" fill="#6e7681">EX</text></g>
+    </g>
+    <g transform="translate(28, 92)">
+      <g><rect width="38" height="22" rx="4" fill="#30363d" opacity="0.3" stroke="#30363d" stroke-width="0.8"/><text x="19" y="15" text-anchor="middle" font-family="monospace" font-size="8" fill="#6e7681">RV</text></g>
+      <g transform="translate(46, 0)"><rect width="38" height="22" rx="4" fill="#30363d" opacity="0.3" stroke="#30363d" stroke-width="0.8"/><text x="19" y="15" text-anchor="middle" font-family="monospace" font-size="8" fill="#6e7681">ME</text></g>
+      <g transform="translate(92, 0)"><rect width="38" height="22" rx="4" fill="#30363d" opacity="0.3" stroke="#30363d" stroke-width="0.8"/><text x="19" y="15" text-anchor="middle" font-family="monospace" font-size="8" fill="#6e7681">PT</text></g>
+      <g transform="translate(138, 0)"><rect width="38" height="22" rx="4" fill="#30363d" opacity="0.3" stroke="#30363d" stroke-width="0.8"/><text x="19" y="15" text-anchor="middle" font-family="monospace" font-size="8" fill="#6e7681">RF</text></g>
+      <g transform="translate(184, 0)"><rect width="38" height="22" rx="4" fill="#30363d" opacity="0.3" stroke="#30363d" stroke-width="0.8"/><text x="19" y="15" text-anchor="middle" font-family="monospace" font-size="8" fill="#6e7681">GO</text></g>
+    </g>
+
+    <!-- Bottom labels -->
+    <g transform="translate(28, 134)">
+      <text x="0" y="10" font-family="monospace" font-size="9" fill="#6e7681">Memory</text>
+      <text x="0" y="26" font-family="monospace" font-size="9" fill="#6e7681">Reflection</text>
+      <text x="0" y="42" font-family="monospace" font-size="9" fill="#6e7681">Self-learning</text>
+      <text x="120" y="10" font-family="monospace" font-size="9" fill="#6e7681">Fractal Agents</text>
+      <text x="120" y="26" font-family="monospace" font-size="9" fill="#6e7681">MCP Tools</text>
+      <text x="120" y="42" font-family="monospace" font-size="9" fill="#6e7681">Budget Control</text>
+    </g>
+  </g>
+
+  <!-- Arrow 2 -->
+  <g filter="url(#g2)">
+    <line x1="600" y1="130" x2="650" y2="130" stroke="#7c3aed" stroke-width="2"/>
+    <polygon points="650,124 664,130 650,136" fill="#7c3aed"/>
+  </g>
+
+  <!-- Output box -->
+  <g transform="translate(670, 40)">
+    <rect width="180" height="180" rx="10" fill="none" stroke="#7c3aed" stroke-width="1.5" opacity="0.5"/>
+    <rect width="180" height="180" rx="10" fill="#0d1117" opacity="0.6"/>
+    <text x="90" y="28" text-anchor="middle" font-family="monospace" font-size="13" font-weight="700" fill="#7c3aed">GENERATIVE UI</text>
+    <line x1="20" y1="40" x2="160" y2="40" stroke="#7c3aed" stroke-width="0.5" opacity="0.3"/>
+
+    <g transform="translate(20, 58)">
+      <rect width="140" height="28" rx="6" fill="#7c3aed" opacity="0.1" stroke="#7c3aed" stroke-width="0.8"/>
+      <text x="70" y="18" text-anchor="middle" font-family="monospace" font-size="10" fill="#c4b5fd">Terminal: ANSI</text>
+    </g>
+    <g transform="translate(20, 94)">
+      <rect width="140" height="28" rx="6" fill="#7c3aed" opacity="0.1" stroke="#7c3aed" stroke-width="0.8"/>
+      <text x="70" y="18" text-anchor="middle" font-family="monospace" font-size="10" fill="#c4b5fd">Browser: HTML</text>
+    </g>
+    <g transform="translate(20, 130)">
+      <rect width="140" height="28" rx="6" fill="#7c3aed" opacity="0.15" stroke="#7c3aed" stroke-width="1"/>
+      <text x="70" y="18" text-anchor="middle" font-family="monospace" font-size="10" fill="#c4b5fd">Kiosk: SPA</text>
+    </g>
+  </g>
+
+  <!-- Border -->
+  <rect x="0.5" y="0.5" width="899" height="259" fill="none" stroke="#30363d" stroke-width="0.5" rx="10"/>
+</svg>

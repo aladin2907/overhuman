@@ -262,7 +262,7 @@ func TestKioskHTML_HasSandboxIframe(t *testing.T) {
 
 func TestKioskHTML_HasDarkTheme(t *testing.T) {
 	h := NewKioskHandler(DefaultKioskConfig())
-	vars := []string{"--bg-primary", "--accent", "--danger"}
+	vars := []string{"--bg-void", "--accent", "--danger", "--bg-glass", "--text-primary"}
 	for _, v := range vars {
 		if !strings.Contains(h.html, v) {
 			t.Errorf("rendered HTML does not contain CSS variable %s", v)
@@ -422,5 +422,217 @@ func TestKioskHandler_TouchModeEnabled(t *testing.T) {
 
 	if !strings.Contains(h.html, "touchMode: true") {
 		t.Error("rendered HTML does not contain touchMode: true")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// New fields: Theme and SoundEnabled
+// ---------------------------------------------------------------------------
+
+func TestDefaultKioskConfig_NewFields(t *testing.T) {
+	cfg := DefaultKioskConfig()
+	if cfg.Theme != "scifi" {
+		t.Errorf("Theme = %q, want scifi", cfg.Theme)
+	}
+	if cfg.SoundEnabled {
+		t.Error("SoundEnabled = true, want false")
+	}
+}
+
+func TestKioskHandler_ThemeInjected(t *testing.T) {
+	cfg := DefaultKioskConfig()
+	cfg.Theme = "cyberpunk"
+	h := NewKioskHandler(cfg)
+
+	if !strings.Contains(h.html, `theme: "cyberpunk"`) {
+		t.Error("rendered HTML does not contain theme: cyberpunk")
+	}
+}
+
+func TestKioskHandler_ThemeDefault(t *testing.T) {
+	cfg := DefaultKioskConfig()
+	h := NewKioskHandler(cfg)
+
+	if !strings.Contains(h.html, `theme: "scifi"`) {
+		t.Error("rendered HTML does not contain theme: scifi")
+	}
+}
+
+func TestKioskHandler_ThemeEmptyDefaultsToScifi(t *testing.T) {
+	cfg := DefaultKioskConfig()
+	cfg.Theme = ""
+	h := NewKioskHandler(cfg)
+
+	if !strings.Contains(h.html, `theme: "scifi"`) {
+		t.Error("empty theme should default to scifi")
+	}
+}
+
+func TestKioskHandler_SoundEnabled(t *testing.T) {
+	cfg := DefaultKioskConfig()
+	cfg.SoundEnabled = true
+	h := NewKioskHandler(cfg)
+
+	if !strings.Contains(h.html, "soundEnabled: true") {
+		t.Error("rendered HTML does not contain soundEnabled: true")
+	}
+}
+
+func TestKioskHandler_SoundDisabled(t *testing.T) {
+	cfg := DefaultKioskConfig()
+	h := NewKioskHandler(cfg)
+
+	if !strings.Contains(h.html, "soundEnabled: false") {
+		t.Error("rendered HTML does not contain soundEnabled: false")
+	}
+}
+
+func TestKioskHTML_HasThemeTemplateVar(t *testing.T) {
+	if !strings.Contains(KioskHTML, "{{THEME}}") {
+		t.Error("KioskHTML missing {{THEME}} template variable")
+	}
+}
+
+func TestKioskHTML_HasSoundTemplateVar(t *testing.T) {
+	if !strings.Contains(KioskHTML, "{{SOUND_ENABLED}}") {
+		t.Error("KioskHTML missing {{SOUND_ENABLED}} template variable")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Kiosk HTML new feature tests
+// ---------------------------------------------------------------------------
+
+func TestKioskHTML_HasNeuralCanvas(t *testing.T) {
+	h := NewKioskHandler(DefaultKioskConfig())
+	if !strings.Contains(h.html, "neuralCanvas") {
+		t.Error("rendered HTML does not contain neuralCanvas")
+	}
+	if !strings.Contains(h.html, "requestAnimationFrame") {
+		t.Error("rendered HTML does not contain requestAnimationFrame")
+	}
+}
+
+func TestKioskHTML_HasGlassmorphism(t *testing.T) {
+	h := NewKioskHandler(DefaultKioskConfig())
+	if !strings.Contains(h.html, "backdrop-filter") {
+		t.Error("rendered HTML does not contain backdrop-filter CSS")
+	}
+}
+
+func TestKioskHTML_HasPipelineHUD(t *testing.T) {
+	h := NewKioskHandler(DefaultKioskConfig())
+	if !strings.Contains(h.html, "pipelineHUD") {
+		t.Error("rendered HTML does not contain pipelineHUD")
+	}
+	if !strings.Contains(h.html, "pipeline_stage") {
+		t.Error("rendered HTML does not contain pipeline_stage message handler")
+	}
+}
+
+func TestKioskHTML_HasPipelineStages(t *testing.T) {
+	h := NewKioskHandler(DefaultKioskConfig())
+	stages := []string{"IN", "CL", "PL", "AG", "EX", "RV", "PT", "ME", "RF", "GO"}
+	for _, s := range stages {
+		if !strings.Contains(h.html, `"`+s+`"`) {
+			t.Errorf("rendered HTML does not contain pipeline stage label %q", s)
+		}
+	}
+}
+
+func TestKioskHTML_HasSoundEngine(t *testing.T) {
+	h := NewKioskHandler(DefaultKioskConfig())
+	if !strings.Contains(h.html, "AudioContext") {
+		t.Error("rendered HTML does not contain AudioContext for sound engine")
+	}
+	if !strings.Contains(h.html, "createOscillator") {
+		t.Error("rendered HTML does not contain createOscillator for sound synthesis")
+	}
+}
+
+func TestKioskHTML_HasCRTMode(t *testing.T) {
+	h := NewKioskHandler(DefaultKioskConfig())
+	if !strings.Contains(h.html, "crt-mode") {
+		t.Error("rendered HTML does not contain crt-mode CSS class")
+	}
+}
+
+func TestKioskHTML_HasThemeSystem(t *testing.T) {
+	h := NewKioskHandler(DefaultKioskConfig())
+	if !strings.Contains(h.html, "themeSelect") {
+		t.Error("rendered HTML does not contain themeSelect control")
+	}
+	// Check that theme CSS variables exist.
+	themeVars := []string{"--bg-void", "--bg-glass", "--accent", "--accent-glow", "--text-primary"}
+	for _, v := range themeVars {
+		if !strings.Contains(h.html, v) {
+			t.Errorf("rendered HTML does not contain theme CSS variable %s", v)
+		}
+	}
+}
+
+func TestKioskHTML_HasAgentStatusRing(t *testing.T) {
+	h := NewKioskHandler(DefaultKioskConfig())
+	if !strings.Contains(h.html, "agent-ring") {
+		t.Error("rendered HTML does not contain agent-ring")
+	}
+	if !strings.Contains(h.html, "agentStateLabel") {
+		t.Error("rendered HTML does not contain agentStateLabel")
+	}
+}
+
+func TestKioskHTML_HasMetricsPanel(t *testing.T) {
+	h := NewKioskHandler(DefaultKioskConfig())
+	if !strings.Contains(h.html, "metricsPanel") {
+		t.Error("rendered HTML does not contain metricsPanel")
+	}
+	if !strings.Contains(h.html, "metricQuality") {
+		t.Error("rendered HTML does not contain metricQuality")
+	}
+}
+
+func TestKioskHTML_HasSciFiCornerAccents(t *testing.T) {
+	h := NewKioskHandler(DefaultKioskConfig())
+	if !strings.Contains(h.html, "sci-frame") {
+		t.Error("rendered HTML does not contain sci-frame CSS class for corner accents")
+	}
+}
+
+func TestKioskHTML_HasDeviceAdaptive(t *testing.T) {
+	h := NewKioskHandler(DefaultKioskConfig())
+	// Should have mobile breakpoint.
+	if !strings.Contains(h.html, "480px") {
+		t.Error("rendered HTML does not contain 480px mobile breakpoint")
+	}
+	// Should have tablet breakpoint.
+	if !strings.Contains(h.html, "1024px") {
+		t.Error("rendered HTML does not contain 1024px tablet breakpoint")
+	}
+}
+
+func TestKioskHTML_HasSidebarOverlay(t *testing.T) {
+	h := NewKioskHandler(DefaultKioskConfig())
+	if !strings.Contains(h.html, "sidebarOverlay") {
+		t.Error("rendered HTML does not contain sidebarOverlay for mobile")
+	}
+	if !strings.Contains(h.html, "sidebarOpenBtn") {
+		t.Error("rendered HTML does not contain sidebarOpenBtn")
+	}
+}
+
+func TestKioskHTML_HasEmptyState(t *testing.T) {
+	h := NewKioskHandler(DefaultKioskConfig())
+	if !strings.Contains(h.html, "emptyState") {
+		t.Error("rendered HTML does not contain emptyState")
+	}
+}
+
+func TestKioskHTML_HasToggleControls(t *testing.T) {
+	h := NewKioskHandler(DefaultKioskConfig())
+	if !strings.Contains(h.html, "toggleSound") {
+		t.Error("rendered HTML does not contain toggleSound button")
+	}
+	if !strings.Contains(h.html, "toggleCRT") {
+		t.Error("rendered HTML does not contain toggleCRT button")
 	}
 }

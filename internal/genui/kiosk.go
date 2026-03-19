@@ -25,6 +25,12 @@ type KioskConfig struct {
 
 	// EmergencyStop shows the emergency stop button (default: true).
 	EmergencyStop bool
+
+	// Theme selects the visual theme: "scifi" (default), "cyberpunk", "clean".
+	Theme string
+
+	// SoundEnabled enables synthesized audio feedback (default: false).
+	SoundEnabled bool
 }
 
 // DefaultKioskConfig returns the default kiosk configuration.
@@ -36,6 +42,8 @@ func DefaultKioskConfig() KioskConfig {
 		ShowSidebar:   true,
 		TouchMode:     false, // auto-detect in JS
 		EmergencyStop: true,
+		Theme:         "scifi",
+		SoundEnabled:  false,
 	}
 }
 
@@ -91,6 +99,13 @@ func (h *KioskHandler) renderHTML() string {
 	html = strings.ReplaceAll(html, "{{SHOW_SIDEBAR}}", boolStr(h.config.ShowSidebar))
 	html = strings.ReplaceAll(html, "{{TOUCH_MODE}}", boolStr(h.config.TouchMode))
 	html = strings.ReplaceAll(html, "{{EMERGENCY_STOP}}", boolStr(h.config.EmergencyStop))
+
+	theme := h.config.Theme
+	if theme == "" {
+		theme = "scifi"
+	}
+	html = strings.ReplaceAll(html, "{{THEME}}", theme)
+	html = strings.ReplaceAll(html, "{{SOUND_ENABLED}}", boolStr(h.config.SoundEnabled))
 
 	return html
 }

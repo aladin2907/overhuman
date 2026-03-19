@@ -1,34 +1,145 @@
-# Overhuman
+<p align="center">
+  <img src="docs/assets/banner.svg" alt="Overhuman — Self-evolving AI daemon with fully generative UI" width="800">
+</p>
 
-**An AI assistant that learns and gets cheaper with every request.**
+<p align="center">
+  <img src="https://img.shields.io/badge/Go-1.25-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go 1.25">&ensp;
+  <img src="https://img.shields.io/badge/tests-981-success?style=for-the-badge" alt="Tests">&ensp;
+  <img src="https://img.shields.io/badge/deps-3-blue?style=for-the-badge" alt="Dependencies">&ensp;
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT License"></a>
+</p>
 
-Overhuman is a daemon process that accepts tasks from any channel (CLI, HTTP API, Telegram, Slack, Discord, Email), executes them via LLM, remembers results, and automatically generates code for recurring tasks. Over time, expensive LLM calls get replaced by deterministic code — faster, cheaper, more reliable.
+<br>
+
+<p align="center">
+  <strong>Overhuman</strong> is an always-on AI assistant daemon that processes tasks through a 10-stage pipeline<br>
+  and <strong>generates a unique visual interface for every response</strong> — not from a component catalog, but from scratch.<br>
+  It connects to any channel you already use, remembers everything, learns from repetition,<br>
+  and gets cheaper over time by auto-generating code skills that replace LLM calls.
+</p>
+
+<p align="center">
+  <em>If you want a personal AI daemon that thinks, learns, and renders — this is it.</em>
+</p>
+
+<br>
+
+<p align="center">
+  <a href="docs/SPEC.md">Spec</a> ·
+  <a href="docs/SPEC_DYNAMIC_UI.md">GenUI Spec</a> ·
+  <a href="docs/ARCHITECTURE.md">Architecture</a> ·
+  <a href="docs/PHASES.md">Phases</a> ·
+  <a href="#-quick-start">Quick Start</a>
+</p>
+
+<br>
+
+<p align="center">
+  <img src="docs/assets/architecture.svg" alt="Architecture: Input → 10-Stage Pipeline → Generative UI" width="800">
+</p>
+
+---
+
+## 🎨 Generative UI — The Core Feature
+
+Most AI assistants return plain text. Some use pre-built component catalogs. Overhuman takes a fundamentally different approach:
+
+> **The LLM generates complete, self-contained UI code for every response.**
 
 ```
-Tasks → LLM executes → Reflection → Patterns → Code skills
-  ↑                                                    ↓
-  └──── Cheaper, faster, more reliable ◄──── Code replaces LLM
+ "Analyze server logs"  →  Interactive dashboard with latency charts, error heatmap, filterable table
+ "Compare Q1 vs Q2"     →  Side-by-side cards with sparklines and delta highlights
+ "Draft an email"       →  Rich editor with tone slider and preview pane
+ "Explain this code"    →  Syntax-highlighted walkthrough with collapsible sections
 ```
 
-## Features
+No component registry. No JSON schema. The agent decides the best visualization — charts, tables, forms, games, timelines, card grids — whatever fits the data.
 
-**Generative UI (Level 3)** — LLM generates complete visual UI from scratch for every response. Not templates, not component catalogs — the AI decides how to visualize each result. ANSI art in terminal, full HTML/CSS/JS apps in browser, React+Tailwind via in-browser compilation. Self-healing: if generated code has errors, the agent auto-retries. UI reflection: learns from user interactions and improves over time. The first Go project with AI-generated multi-device UI.
+<br>
 
-**Universal assistant** — not just for code. Marketing, planning, data analysis, communications, routine automation.
+### How it compares
 
-**Remembers everything** — short-term memory (current dialog) + long-term (SQLite with full-text search) + pattern tracking. No need to repeat yourself.
+| Approach | Who does it | Agent freedom | Overhuman |
+|----------|-------------|---------------|:---------:|
+| **Level 1 — Controlled** | Vercel AI SDK, AG-UI | Agent picks from developer-built components | — |
+| **Level 2 — Declarative** | Google A2UI, Yandex DivKit | Agent outputs JSON, client renders from catalog | — |
+| **Level 3 — Fully Generated** | Gemini Dynamic View, Claude Artifacts | Agent writes full UI code from scratch | **✓** |
 
-**Learns from repetition** — if you ask the same thing 3 times, Overhuman automatically generates a code skill and stops spending money on LLM calls for that task.
+> [!NOTE]
+> Level 1-2 limit the agent to what a developer pre-built. Level 3 means **infinite UI surface** — the agent can create any visualization it can imagine. The tradeoff is sandboxing (solved) and non-determinism (solved via self-healing + reflection).
 
-**Works with any model** — OpenAI, Claude, Ollama (local models), LM Studio, Groq, Together AI, OpenRouter, or any OpenAI-compatible endpoint. Switches with a single command. Models are fetched dynamically from provider APIs.
+<br>
 
-**Multi-channel** — one brain behind all channels. Task comes in from Telegram, response goes out to Slack. CLI for development, HTTP API for integrations, Email for automation.
+### Three rendering targets
 
-**Always on** — runs as a system service. Heartbeat every 30 minutes for proactive tasks and self-improvement.
+| Target | Format | Use case |
+|--------|--------|----------|
+| 🖥️ **Terminal** | ANSI escape codes + box drawing | CLI over SSH, no browser needed |
+| 🌐 **Browser** | HTML + CSS + JS via WebSocket | Sandboxed iframe — no network, no data leak |
+| 📺 **Kiosk** | Full-screen SPA on dedicated screen | Companion display for tablet / wall mount / desktop |
 
-**Secure** — key encryption (AES-256-GCM), prompt injection protection, full audit trail, skill validation, code sandbox.
+<br>
 
-## Quick Start
+### Kiosk: the companion display
+
+The Kiosk is a full-screen web app designed for a dedicated screen — tablet on your desk, monitor on the wall, or a browser window you keep open. It connects via WebSocket and shows:
+
+| Component | Description |
+|-----------|-------------|
+| **Pipeline HUD** | Real-time progress through all 10 stages as tasks execute |
+| **Generated UI** | Each response rendered as a rich HTML app inside a sandboxed iframe |
+| **Neural canvas** | Animated particle background that reacts to pipeline activity |
+| **Agent status ring** | Visual heartbeat of the daemon |
+| **Metrics panel** | Tasks processed, skills generated, memory entries |
+| **Theme system** | Sci-fi (default) · cyberpunk · clean — via CSS custom properties |
+| **Sound engine** | Synthesized audio feedback via Web Audio API (zero external files) |
+| **CRT mode** | Scanline overlay + text glow for the retro aesthetic |
+
+> [!TIP]
+> Device-adaptive rendering: phone strips down to essentials (no HUD, overlay sidebar), tablet becomes a control pad, desktop is a full command center.
+
+<br>
+
+### Self-healing and reflection
+
+```
+LLM generates HTML → Render in sandbox → Error?
+                                           ├─ Yes → Feed error back to LLM → Retry (max 2)
+                                           │         Still broken? → Fall back to plain text
+                                           └─ No  → Track user interactions
+                                                     └─ What they click, scroll past, ignore
+                                                        └─ Feed back into UI generation prompt
+                                                           └─ Next UI is better
+```
+
+> UI cost: ~$0.001 per generation (gpt-4.1-nano). Skipped for short text answers.
+
+<br>
+
+### Why this matters
+
+The industry is converging on AI companions — ambient displays, smart glasses, wearable pendants — all needing a software brain that renders dynamic UI on any surface. Overhuman's architecture — a central daemon that pushes generated UI to any connected client via WebSocket — is exactly this pattern, running today, in pure Go with 3 dependencies.
+
+---
+
+## ⚡ Features
+
+| | Feature | Description |
+|-|---------|-------------|
+| 📡 | **6 Channels** | CLI · Telegram · Slack · Discord · Email · HTTP API — one brain behind all |
+| 🧠 | **Memory** | Short-term (dialog) + long-term (SQLite FTS5) + pattern tracking |
+| 🔄 | **Self-learning** | 3x repeat → auto code skill → LLM replaced with deterministic code |
+| 🤖 | **Any model** | OpenAI · Claude · Ollama · Groq · Together · OpenRouter + any compatible |
+| 🌳 | **Fractal agents** | Tree hierarchy, delegation, best-of-N competitions, per-agent memory |
+| 🪞 | **4-level reflection** | Micro → Meso → Macro → Mega self-improvement loop |
+| 🛠️ | **20 skills** | Code gen, search, translate, summarize, email + 9 stubs for external services |
+| 🔐 | **Security** | AES-256-GCM · prompt injection protection · audit trail · code sandbox |
+| ⏰ | **Always on** | OS service (launchd/systemd) · heartbeat every 30 min · proactive goals |
+| 🔌 | **MCP tools** | Model Context Protocol client for external tool integration |
+
+---
+
+## 🚀 Quick Start
 
 ```bash
 # Build
@@ -46,48 +157,47 @@ go build -o overhuman ./cmd/overhuman/
 
 On first run, `overhuman cli` will automatically prompt the setup wizard if no keys are configured.
 
-**Zero-config local mode** — no API key needed:
+> [!TIP]
+> **Zero-config local mode** — no API key needed:
+> ```bash
+> LLM_PROVIDER=ollama ./overhuman cli
+> ```
+
+---
+
+## 🖥️ Deployment
+
 ```bash
-LLM_PROVIDER=ollama ./overhuman cli
-```
-
-## Deployment
-
-```bash
-# Diagnostics — check config, connection, database
-overhuman doctor
-
-# Install as OS service (launchd on macOS, systemd on Linux)
-overhuman install
-
-# Management
-overhuman status     # check if daemon is running
-overhuman stop       # graceful shutdown (SIGTERM)
-overhuman logs       # tail last 50 lines of log
-overhuman update     # check & apply updates (SHA256 verified)
-overhuman uninstall  # remove OS service
+overhuman doctor       # diagnostics — check config, connection, database
+overhuman install      # install as OS service (launchd on macOS, systemd on Linux)
+overhuman status       # check if daemon is running
+overhuman stop         # graceful shutdown (SIGTERM)
+overhuman logs         # tail last 50 lines of log
+overhuman update       # check & apply updates (SHA256 verified)
+overhuman uninstall    # remove OS service
 ```
 
 The daemon opens 3 ports (configurable via `OVERHUMAN_API_ADDR`):
 
 | Port | Service | Description |
-|------|---------|-------------|
-| 9090 | HTTP API | REST API for integrations (`/input`, `/input/sync`, `/health`) |
-| 9091 | WebSocket | Real-time UI streaming (RFC 6455, pure stdlib) |
-| 9092 | Kiosk | Full-screen web app (tablet/desktop) |
+|:----:|---------|-------------|
+| `9090` | **HTTP API** | REST API for integrations (`/input`, `/input/sync`, `/health`) |
+| `9091` | **WebSocket** | Real-time UI streaming (RFC 6455, pure stdlib) |
+| `9092` | **Kiosk** | Full-screen web app (tablet/desktop companion display) |
 
-File drop: place files in `~/.overhuman/inbox/` — the daemon picks them up automatically.
+> File drop: place files in `~/.overhuman/inbox/` — the daemon picks them up automatically.
+> Logs: stdout + `~/.overhuman/logs/overhuman.log`.
 
-Logs are written to both stdout and `~/.overhuman/logs/overhuman.log`.
+---
 
-## Supported LLMs
+## 🧩 Supported LLMs
 
 | Provider | API Key | Models |
-|----------|---------|--------|
+|----------|:-------:|--------|
 | **OpenAI** | Required | o3, o4-mini, GPT-4.1 |
 | **Anthropic Claude** | Required | Claude Sonnet, Haiku, Opus |
-| **Ollama** | Not needed | Local models — llama3, mistral, etc. Free |
-| **LM Studio** | Not needed | Local models via GUI |
+| **Ollama** | — | Local models — llama3, mistral, etc. Free |
+| **LM Studio** | — | Local models via GUI |
 | **Groq** | Required | Fast inference — Llama, DeepSeek, Qwen |
 | **Together AI** | Required | Open-source models hosted |
 | **OpenRouter** | Required | All models through a single key |
@@ -95,11 +205,14 @@ Logs are written to both stdout and `~/.overhuman/logs/overhuman.log`.
 
 The configure wizard fetches available models directly from provider APIs. Config is stored in `~/.overhuman/config.json` (permissions 600). Environment variables override config — useful for Docker/CI.
 
-## How It Works
+---
 
-### 10-Stage Pipeline
+## 🔬 How It Works
 
-Every request goes through a full processing cycle:
+<details>
+<summary><strong>10-Stage Pipeline</strong> — every request goes through a full processing cycle</summary>
+
+<br>
 
 1. **Intake** — normalize input from any channel into a unified format
 2. **Clarification** — LLM asks clarifying questions if needed
@@ -112,9 +225,14 @@ Every request goes through a full processing cycle:
 9. **Reflection** — self-assessment and strategy adjustment
 10. **Goals** — update proactive goals
 
-### Self-Learning
+</details>
 
-Overhuman tracks recurring tasks via fingerprinting. When a pattern repeats K times (default 3), the system:
+<details>
+<summary><strong>Self-Learning</strong> — recurring tasks get compiled into code</summary>
+
+<br>
+
+Overhuman tracks recurring tasks via fingerprinting. When a pattern repeats K times (default 3):
 
 1. Generates a code skill based on accumulated examples
 2. Registers it as a deterministic alternative to LLM calls
@@ -123,7 +241,12 @@ Overhuman tracks recurring tasks via fingerprinting. When a pattern repeats K ti
 
 Result: each cycle makes the system cheaper (code vs API), faster (ms vs seconds), and more reliable (determinism vs stochastic).
 
-### 4 Levels of Reflection
+</details>
+
+<details>
+<summary><strong>4 Levels of Reflection</strong> — self-improvement at every scale</summary>
+
+<br>
 
 | Level | When | What it does |
 |-------|------|-------------|
@@ -132,35 +255,20 @@ Result: each cycle makes the system cheaper (code vs API), faster (ms vs seconds
 | **Macro** | Every N tasks | Reevaluates strategies and goals |
 | **Mega** | Rarely | Evaluates the reflection process itself |
 
-### Fractal Agents
+</details>
+
+<details>
+<summary><strong>Fractal Agents</strong> — tree of specialized sub-agents</summary>
+
+<br>
 
 Agents form a tree. A parent creates specialized children (coder, reviewer, researcher), delegates tasks, runs competitions (best-of-N), and fires/promotes based on results. Each agent has its own identity, memory, and skills.
 
-### Generative UI
+</details>
 
-After the pipeline processes a task, a separate LLM call generates the visual representation:
+---
 
-```
-Pipeline.Run() → RunResult → UIGenerator.Generate() → GeneratedUI
-                                    ↓
-                    CLI: ANSI art (tables, charts, boxes)
-                    Web: HTML + CSS + JS (sandboxed iframe)
-                    Tablet: full-screen kiosk app
-```
-
-Key capabilities:
-
-| Feature | What it does |
-|---------|-------------|
-| **Self-Healing** | Invalid UI code? Agent retries with the error message (max 2 retries), then falls back to plain text |
-| **Progressive Disclosure** | Shows TL;DR first, details on demand |
-| **Thought Logs** | Transparent pipeline execution: which stages ran, how long, what decisions were made |
-| **UI Reflection** | Tracks which actions users click, what they scroll past — improves future UI |
-| **Sandbox** | Generated HTML runs in a sandboxed iframe with CSP: no network, no navigation, no data exfiltration |
-
-Cost: ~$0.001 per UI generation (gpt-4.1-nano). Skipped for short answers.
-
-## HTTP API
+## 🌐 HTTP API
 
 ```bash
 # Async request (fire-and-forget)
@@ -177,9 +285,14 @@ curl -X POST http://localhost:9090/input/sync \
 curl http://localhost:9090/health
 ```
 
-## Configuration
+---
 
-Environment variables (override config.json):
+## ⚙️ Configuration
+
+<details>
+<summary>Environment variables (override config.json)</summary>
+
+<br>
 
 ```
 ANTHROPIC_API_KEY   — Claude key
@@ -193,7 +306,11 @@ OVERHUMAN_API_ADDR  — API address (default 127.0.0.1:9090)
 OVERHUMAN_NAME      — agent name
 ```
 
-## Technical Decisions
+</details>
+
+---
+
+## 🏗️ Technical Decisions
 
 | Decision | Choice | Why |
 |----------|--------|-----|
@@ -204,7 +321,14 @@ OVERHUMAN_NAME      — agent name
 | Sandbox | **Docker** | Isolation for auto-generated code |
 | Encryption | **AES-256-GCM** | Authenticated encryption for keys |
 
-## Project Structure
+---
+
+## 📁 Project Structure
+
+<details>
+<summary>21 packages, single binary</summary>
+
+<br>
 
 ```
 cmd/overhuman/       — entry point (daemon, CLI, configure, doctor)
@@ -230,22 +354,32 @@ internal/
 └── observability/   — structured logs and metrics
 ```
 
-## Tests
+</details>
+
+---
+
+## 🧪 Tests
 
 ```bash
-go test ./...         # 946 tests, 21 packages
-go test ./... -race   # Race condition checks
+go test ./...         # 981 tests, 21 packages
+go test ./... -race   # race condition checks
 ```
 
 All tests run with a mock LLM server — no API keys needed.
 
-## Docs
+---
 
-- `docs/SPEC.md` — full specification (700+ lines)
-- `docs/SPEC_DYNAMIC_UI.md` — generative UI specification (1186 lines)
-- `docs/PHASES.md` — implementation tracker
-- `docs/ARCHITECTURE.md` — architecture
+## 📚 Docs
 
-## License
+| Document | Description |
+|----------|-------------|
+| [`docs/SPEC.md`](docs/SPEC.md) | Full specification (700+ lines) |
+| [`docs/SPEC_DYNAMIC_UI.md`](docs/SPEC_DYNAMIC_UI.md) | Generative UI specification (1186 lines) |
+| [`docs/PHASES.md`](docs/PHASES.md) | Implementation tracker |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Architecture overview |
 
-MIT
+---
+
+<p align="center">
+  <sub>MIT License · Built with Go · 3 dependencies · Zero JS frameworks</sub>
+</p>

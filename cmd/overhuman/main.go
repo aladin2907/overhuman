@@ -590,6 +590,18 @@ func runDaemon() {
 	uiReflection := genui.NewReflectionStore()
 	webCaps := genui.WebCapabilities(1280, 800)
 
+	// Wire real-time pipeline stage events → WebSocket broadcast.
+	p.OnStageProgress(func(evt pipeline.StageEvent) {
+		if wsSrv.ClientCount() == 0 {
+			return
+		}
+		msg, err := genui.NewPipelineStageMessage(evt.TaskID, evt.Stage, evt.Name, evt.Status, evt.Summary, evt.DurMs)
+		if err != nil {
+			return
+		}
+		wsSrv.Broadcast(msg)
+	})
+
 	// Wire WS incoming messages → pipeline input or reflection store.
 	wsSrv.OnMessage(func(connID string, msg *genui.WSMessage) {
 		switch msg.Type {

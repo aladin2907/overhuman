@@ -14,7 +14,8 @@ const (
 	WSMsgUIStream    WSMessageType = "ui_stream"     // Streaming chunk
 	WSMsgActionResult WSMessageType = "action_result" // Response to client action
 	WSMsgError       WSMessageType = "error"         // Error notification
-	WSMsgPong        WSMessageType = "pong"          // Keepalive response
+	WSMsgPong          WSMessageType = "pong"           // Keepalive response
+	WSMsgPipelineStage WSMessageType = "pipeline_stage" // Real-time pipeline stage progress
 
 	// Client → Server message types.
 	WSMsgAction     WSMessageType = "action"      // User clicked an action button
@@ -82,6 +83,28 @@ type WSUIFeedbackPayload struct {
 	TimeToAction int64    `json:"time_to_action_ms"`
 	ActionsUsed  []string `json:"actions_used"`
 	Dismissed    bool     `json:"dismissed"`
+}
+
+// WSPipelineStagePayload is the payload for WSMsgPipelineStage messages.
+type WSPipelineStagePayload struct {
+	TaskID  string `json:"task_id"`
+	Stage   int    `json:"stage"`                // 1-10
+	Name    string `json:"name"`                 // "intake", "clarify", etc.
+	Status  string `json:"status"`               // "started" | "completed" | "error"
+	Summary string `json:"summary,omitempty"`
+	DurMs   int64  `json:"duration_ms,omitempty"`
+}
+
+// NewPipelineStageMessage creates a WSMsgPipelineStage message.
+func NewPipelineStageMessage(taskID string, stage int, name, status, summary string, durMs int64) (*WSMessage, error) {
+	return NewWSMessage(WSMsgPipelineStage, WSPipelineStagePayload{
+		TaskID:  taskID,
+		Stage:   stage,
+		Name:    name,
+		Status:  status,
+		Summary: summary,
+		DurMs:   durMs,
+	})
 }
 
 // ParseWSMessage decodes a raw JSON byte slice into a WSMessage.

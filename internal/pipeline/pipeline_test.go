@@ -285,3 +285,156 @@ func TestPipeline_LLMError(t *testing.T) {
 		t.Error("task ID should still be set")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// StageEvent / OnStageProgress / emitStage
+// ---------------------------------------------------------------------------
+
+func TestStageEvent_Fields(t *testing.T) {
+	evt := StageEvent{
+		TaskID:  "task_1",
+		Stage:   5,
+		Name:    "execute",
+		Status:  "completed",
+		Summary: "done",
+		DurMs:   1234,
+	}
+	if evt.TaskID != "task_1" {
+		t.Errorf("TaskID = %q", evt.TaskID)
+	}
+	if evt.Stage != 5 {
+		t.Errorf("Stage = %d", evt.Stage)
+	}
+	if evt.Name != "execute" {
+		t.Errorf("Name = %q", evt.Name)
+	}
+	if evt.Status != "completed" {
+		t.Errorf("Status = %q", evt.Status)
+	}
+	if evt.Summary != "done" {
+		t.Errorf("Summary = %q", evt.Summary)
+	}
+	if evt.DurMs != 1234 {
+		t.Errorf("DurMs = %d", evt.DurMs)
+	}
+}
+
+func TestOnStageProgress_Callback(t *testing.T) {
+	srv := mockLLMServer(t)
+	defer srv.Close()
+
+	deps := setupDeps(t, srv.URL)
+	p := New(deps)
+
+	var events []StageEvent
+	p.OnStageProgress(func(evt StageEvent) {
+		events = append(events, evt)
+	})
+
+	input := senses.UnifiedInput{
+		InputID:    "input_stage",
+		SourceType: senses.SourceText,
+		Payload:    "Test stage callbacks",
+	}
+
+	_, _ = p.Run(context.Background(), input)
+
+	// Should receive at least start+complete for each stage (up to 20 events for 10 stages).
+	if len(events) == 0 {
+		t.Fatal("no stage events received")
+	}
+
+	// Verify first event is stage 1 started.
+	if events[0].Stage != 1 {
+		t.Errorf("first event stage = %d, want 1", events[0].Stage)
+	}
+	if events[0].Status != "started" {
+		t.Errorf("first event status = %q, want started", events[0].Status)
+	}
+	if events[0].Name != "intake" {
+		t.Errorf("first event name = %q, want intake", events[0].Name)
+	}
+
+	// Verify task IDs are all non-empty and consistent.
+	taskID := events[0].TaskID
+	if taskID == "" {
+		t.Error("task ID should not be empty")
+	}
+	for i, evt := range events {
+		if evt.TaskID != taskID {
+			t.Errorf("event %d: TaskID = %q, want %q", i, evt.TaskID, taskID)
+		}
+	}
+
+	// Verify we got both "started" and "completed" statuses.
+	hasStarted, hasCompleted := false, false
+	for _, evt := range events {
+		if evt.Status == "started" {
+			hasStarted = true
+		}
+		if evt.Status == "completed" {
+			hasCompleted = true
+		}
+	}
+	if !hasStarted {
+		t.Error("no 'started' events found")
+	}
+	if !hasCompleted {
+		t.Error("no 'completed' events found")
+	}
+}
+
+func TestOnStageProgress_NilCallbackSafe(t *testing.T) {
+	srv := mockLLMServer(t)
+	defer srv.Close()
+
+	deps := setupDeps(t, srv.URL)
+	p := New(deps)
+
+	// Don't register any callback — should not panic.
+	input := senses.UnifiedInput{
+		InputID:    "input_nil_cb",
+		SourceType: senses.SourceText,
+		Payload:    "Test nil callback",
+	}
+
+	_, err := p.Run(context.Background(), input)
+	// Should complete without panic (error from LLM is fine).
+	_ = err
+}
+
+func TestEmitStage_WithCallback(t *testing.T) {
+	p := New(Dependencies{AutoThreshold: 3})
+
+	var received StageEvent
+	p.OnStageProgress(func(evt StageEvent) {
+		received = evt
+	})
+
+	p.emitStage("t1", 3, "plan", "started", "planning phase", 100)
+
+	if received.TaskID != "t1" {
+		t.Errorf("TaskID = %q, want t1", received.TaskID)
+	}
+	if received.Stage != 3 {
+		t.Errorf("Stage = %d, want 3", received.Stage)
+	}
+	if received.Name != "plan" {
+		t.Errorf("Name = %q, want plan", received.Name)
+	}
+	if received.Status != "started" {
+		t.Errorf("Status = %q, want started", received.Status)
+	}
+	if received.Summary != "planning phase" {
+		t.Errorf("Summary = %q, want 'planning phase'", received.Summary)
+	}
+	if received.DurMs != 100 {
+		t.Errorf("DurMs = %d, want 100", received.DurMs)
+	}
+}
+
+func TestEmitStage_WithoutCallback(t *testing.T) {
+	p := New(Dependencies{AutoThreshold: 3})
+	// No callback — should not panic.
+	p.emitStage("t1", 1, "intake", "started", "", 0)
+}
