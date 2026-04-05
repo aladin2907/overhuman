@@ -27,6 +27,7 @@ func TestIntegration_EndToEnd_ANSI(t *testing.T) {
 
 	// 2. Generate UI.
 	gen := NewUIGenerator(mock, brain.NewModelRouter())
+	gen.fastPathEnabled = false
 	result := pipeline.RunResult{
 		TaskID:       "t1",
 		Success:      true,
@@ -100,6 +101,7 @@ body { background: #1a1a2e; color: #e0e0e0; font-family: sans-serif; }
 	})
 
 	gen := NewUIGenerator(mock, brain.NewModelRouter())
+	gen.fastPathEnabled = false
 	result := pipeline.RunResult{
 		TaskID:       "t_html_1",
 		Success:      true,
@@ -147,6 +149,7 @@ func TestIntegration_Fallback(t *testing.T) {
 	})
 
 	gen := NewUIGenerator(mock, brain.NewModelRouter())
+	gen.fastPathEnabled = false
 	result := pipeline.RunResult{
 		TaskID:       "t_fallback",
 		Success:      true,
@@ -192,6 +195,7 @@ func TestIntegration_ActionCallback(t *testing.T) {
 	})
 
 	gen := NewUIGenerator(mock, brain.NewModelRouter())
+	gen.fastPathEnabled = false
 	result := pipeline.RunResult{
 		TaskID:       "t_actions",
 		Success:      true,
@@ -276,6 +280,7 @@ func TestIntegration_SelfHeal_EndToEnd(t *testing.T) {
 	})
 
 	gen := NewUIGenerator(mock, brain.NewModelRouter())
+	gen.fastPathEnabled = false
 	result := pipeline.RunResult{
 		TaskID:       "t_heal",
 		Success:      true,
@@ -353,6 +358,7 @@ func TestIntegration_ThoughtLogVisible(t *testing.T) {
 	})
 
 	gen := NewUIGenerator(mock, brain.NewModelRouter())
+	gen.fastPathEnabled = false
 	result := pipeline.RunResult{
 		TaskID:       "t_thought",
 		Success:      true,
@@ -434,6 +440,7 @@ func TestIntegration_ProgressiveDisclosure(t *testing.T) {
 	})
 
 	gen := NewUIGenerator(mock, brain.NewModelRouter())
+	gen.fastPathEnabled = false
 	result := pipeline.RunResult{
 		TaskID:       "t_progressive",
 		Success:      true,
@@ -498,6 +505,7 @@ func TestIntegration_ReflectionLoop(t *testing.T) {
 	})
 
 	gen := NewUIGenerator(mock, brain.NewModelRouter())
+	gen.fastPathEnabled = false
 	store := NewReflectionStore()
 
 	// --- First iteration: generate, render, record. ---

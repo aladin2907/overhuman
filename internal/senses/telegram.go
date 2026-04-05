@@ -1,6 +1,7 @@
 package senses
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -26,18 +27,28 @@ type TelegramSense struct {
 	stopped bool
 	cancel  context.CancelFunc
 	out     chan<- *UnifiedInput
+	client  *http.Client
+
+	// apiBase is the Telegram Bot API base URL. Override in tests.
+	apiBase string
 
 	// Response routing: chatID → pending messages.
 	responses map[string]string
 }
 
 // NewTelegramSense creates a Telegram adapter.
+// telegramMaxMessageLen is the Telegram Bot API message length limit.
+const telegramMaxMessageLen = 4096
+
 func NewTelegramSense(config TelegramConfig) *TelegramSense {
 	if config.PollTimeout == 0 {
 		config.PollTimeout = 30 * time.Second
 	}
+	token := config.Token
 	return &TelegramSense{
 		config:    config,
+		client:    &http.Client{Timeout: 30 * time.Second},
+		apiBase:   "https://api.telegram.org/bot" + token,
 		responses: make(map[string]string),
 	}
 }
@@ -133,23 +144,62 @@ func (s *TelegramSense) poll(ctx context.Context, out chan<- *UnifiedInput) erro
 }
 
 // Send sends a message back to a Telegram chat.
+// Long messages are automatically split into chunks of telegramMaxMessageLen.
 func (s *TelegramSense) Send(ctx context.Context, target string, message string) error {
-	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", s.config.Token)
-
-	payload := map[string]string{
-		"chat_id": target,
-		"text":    message,
+	if message == "" {
+		return fmt.Errorf("telegram: empty message")
 	}
-	data, _ := json.Marshal(payload)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	// Split into chunks for Telegram's 4096-char limit.
+	for len(message) > 0 {
+		chunk := message
+		if len(chunk) > telegramMaxMessageLen {
+			chunk = message[:telegramMaxMessageLen]
+			message = message[telegramMaxMessageLen:]
+		} else {
+			message = ""
+		}
+
+		if err := s.sendChunk(ctx, target, chunk); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// sendChunk sends a single message chunk to Telegram Bot API.
+func (s *TelegramSense) sendChunk(ctx context.Context, chatID, text string) error {
+	payload, _ := json.Marshal(map[string]string{
+		"chat_id": chatID,
+		"text":    text,
+	})
+
+	url := s.apiBase + "/sendMessage"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
 	if err != nil {
-		return err
+		return fmt.Errorf("telegram: create request: %w", err)
 	}
-	// In real implementation, would use bytes.NewReader(data).
-	_ = data
-	_ = req
-	// Placeholder — actual HTTP POST with JSON body.
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("telegram: send: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+
+	var result struct {
+		OK          bool   `json:"ok"`
+		ErrorCode   int    `json:"error_code,omitempty"`
+		Description string `json:"description,omitempty"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return fmt.Errorf("telegram: parse response: %w", err)
+	}
+	if !result.OK {
+		return fmt.Errorf("telegram: API error %d: %s", result.ErrorCode, result.Description)
+	}
 	return nil
 }
 

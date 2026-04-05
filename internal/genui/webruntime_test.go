@@ -82,6 +82,7 @@ func TestGenerate_ReactFormat(t *testing.T) {
 
 	router := brain.NewModelRouter()
 	gen := NewUIGenerator(mock, router)
+	gen.fastPathEnabled = false
 	result := genSimpleResult("React test", 0.9)
 
 	// Create capabilities with React format.
@@ -112,6 +113,7 @@ func TestGenerate_ReactFormat(t *testing.T) {
 
 func TestSelectFormat_ANSI(t *testing.T) {
 	gen := NewUIGenerator(nil, brain.NewModelRouter())
+	gen.fastPathEnabled = false
 	caps := CLICapabilities()
 	format := gen.selectFormat(caps)
 	if format != FormatANSI {
@@ -121,6 +123,7 @@ func TestSelectFormat_ANSI(t *testing.T) {
 
 func TestSelectFormat_HTML(t *testing.T) {
 	gen := NewUIGenerator(nil, brain.NewModelRouter())
+	gen.fastPathEnabled = false
 	caps := WebCapabilities(1280, 800)
 	format := gen.selectFormat(caps)
 	if format != FormatHTML {
@@ -130,6 +133,7 @@ func TestSelectFormat_HTML(t *testing.T) {
 
 func TestSelectFormat_React(t *testing.T) {
 	gen := NewUIGenerator(nil, brain.NewModelRouter())
+	gen.fastPathEnabled = false
 	caps := DeviceCapabilities{Format: FormatReact, JavaScript: true}
 	format := gen.selectFormat(caps)
 	if format != FormatReact {
@@ -139,6 +143,7 @@ func TestSelectFormat_React(t *testing.T) {
 
 func TestSelectFormat_Markdown(t *testing.T) {
 	gen := NewUIGenerator(nil, brain.NewModelRouter())
+	gen.fastPathEnabled = false
 	caps := DeviceCapabilities{Format: FormatMarkdown}
 	format := gen.selectFormat(caps)
 	if format != FormatMarkdown {
@@ -148,6 +153,7 @@ func TestSelectFormat_Markdown(t *testing.T) {
 
 func TestBuildPrompt_IncludesDeviceDimensions(t *testing.T) {
 	gen := NewUIGenerator(nil, brain.NewModelRouter())
+	gen.fastPathEnabled = false
 	result := genSimpleResult("dim test", 0.8)
 	caps := WebCapabilities(1920, 1080)
 
@@ -163,6 +169,7 @@ func TestBuildPrompt_IncludesDeviceDimensions(t *testing.T) {
 
 func TestBuildPrompt_ReactSystemPrompt(t *testing.T) {
 	gen := NewUIGenerator(nil, brain.NewModelRouter())
+	gen.fastPathEnabled = false
 	result := genSimpleResult("test", 0.8)
 	caps := DeviceCapabilities{Format: FormatReact}
 

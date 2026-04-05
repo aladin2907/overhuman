@@ -1,0 +1,57 @@
+{
+    "$schema": "https://fundingjson.org/schema/v1.1.0.json",
+    "version": "v1.1.0",
+    "entity": {
+        "type": "individual",
+        "role": "owner",
+        "name": "Vadym Nahornyi",
+        "email": "uvn2203@gmail.com",
+        "description": "AI solution architect based in Valencia, Spain. Building open source AI tools that serve users rather than platforms.",
+        "webpageUrl": "https://nahornyi.ai"
+    },
+    "projects": [
+        {
+            "guid": "overhuman",
+            "name": "Overhuman",
+            "description": "A self-evolving open source AI daemon written in Go. Learns through repetition, auto-generates code skills to replace expensive LLM calls, and generates unique visual interfaces from scratch for every response. Ships as a single 15MB binary with <10MB RAM footprint.",
+            "webpageUrl": "https://github.com/aladin2907/overhuman",
+            "repositoryUrl": "https://github.com/aladin2907/overhuman",
+            "licenses": [
+                "MIT"
+            ],
+            "tags": [
+                "ai",
+                "llm",
+                "agent",
+                "go",
+                "open-source",
+                "self-evolving",
+                "generative-ui",
+                "daemon",
+                "mcp",
+                "self-hosted"
+            ]
+        }
+    ],
+    "funding": {
+        "channels": [
+            {
+                "guid": "github-sponsors",
+                "type": "payment-provider",
+                "address": "https://github.com/sponsors/aladin2907",
+                "description": "GitHub Sponsors"
+            }
+        ],
+        "plans": [
+            {
+                "guid": "development",
+                "status": "active",
+                "name": "Core Development",
+                "description": "Fund ongoing development of Overhuman: self-learning engine, generative UI, multi-channel support, security hardening, and community infrastructure.",
+                "amount": 46000,
+                "currency": "EUR",
+                "frequency": "one-time"
+            }
+        ]
+    }
+}

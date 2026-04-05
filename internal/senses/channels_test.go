@@ -111,8 +111,14 @@ func TestTelegramSense_PollWithMockServer(t *testing.T) {
 }
 
 func TestTelegramSense_Send(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"ok":true,"result":{"message_id":1}}`))
+	}))
+	defer srv.Close()
+
 	s := NewTelegramSense(TelegramConfig{Token: "test"})
-	// Send is a placeholder — should not error.
+	s.apiBase = srv.URL + "/bottest"
+
 	err := s.Send(context.Background(), "12345", "hello")
 	if err != nil {
 		t.Fatal(err)
@@ -247,7 +253,14 @@ func TestSlackSense_InvalidJSON(t *testing.T) {
 }
 
 func TestSlackSense_Send(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"ok":true,"channel":"C123","ts":"1234.5678"}`))
+	}))
+	defer srv.Close()
+
 	s := NewSlackSense(SlackConfig{BotToken: "xoxb-test"})
+	s.apiBase = srv.URL
+
 	err := s.Send(context.Background(), "C123", "hello")
 	if err != nil {
 		t.Fatal(err)
@@ -333,7 +346,15 @@ func TestDiscordSense_SlashCommand(t *testing.T) {
 }
 
 func TestDiscordSense_Send(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"id":"1","content":"hello"}`))
+	}))
+	defer srv.Close()
+
 	s := NewDiscordSense(DiscordConfig{BotToken: "test"})
+	s.apiBase = srv.URL
+
 	err := s.Send(context.Background(), "C1", "hello")
 	if err != nil {
 		t.Fatal(err)

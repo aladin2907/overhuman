@@ -122,6 +122,14 @@ body { background: #1a1a2e; color: #e0e0e0; font-family: sans-serif; }
 </body>
 </html>`
 
+// newLLMTestGenerator creates a UIGenerator with fast path disabled,
+// so tests in this file verify LLM interaction without fast-path interception.
+func newLLMTestGenerator(llm brain.LLMProvider, router *brain.ModelRouter) *UIGenerator {
+	gen := NewUIGenerator(llm, router)
+	gen.fastPathEnabled = false
+	return gen
+}
+
 // --- Generator Tests ---
 
 func TestGenerate_ANSI_SimpleText(t *testing.T) {
@@ -145,7 +153,7 @@ func TestGenerate_ANSI_SimpleText(t *testing.T) {
 	})
 
 	router := brain.NewModelRouter()
-	gen := NewUIGenerator(mock, router)
+	gen := newLLMTestGenerator(mock, router)
 
 	result := genSimpleResult("Hello, this is a simple text result.", 0.9)
 	caps := CLICapabilities()
@@ -183,7 +191,7 @@ func TestGenerate_ANSI_CodeResult(t *testing.T) {
 	})
 
 	router := brain.NewModelRouter()
-	gen := NewUIGenerator(mock, router)
+	gen := newLLMTestGenerator(mock, router)
 
 	result := genSimpleResult("```go\nfunc main() {\n    fmt.Println(\"hello\")\n}\n```", 0.95)
 	caps := CLICapabilities()
@@ -220,7 +228,7 @@ func TestGenerate_ANSI_TableData(t *testing.T) {
 	})
 
 	router := brain.NewModelRouter()
-	gen := NewUIGenerator(mock, router)
+	gen := newLLMTestGenerator(mock, router)
 
 	result := genSimpleResult("Name: Alice, Score: 95; Name: Bob, Score: 87", 0.88)
 	caps := CLICapabilities()
@@ -272,7 +280,7 @@ func TestGenerate_ANSI_ErrorResult(t *testing.T) {
 	})
 
 	router := brain.NewModelRouter()
-	gen := NewUIGenerator(mock, router)
+	gen := newLLMTestGenerator(mock, router)
 
 	result := genErrorResult("Connection refused: ECONNREFUSED")
 	caps := CLICapabilities()
@@ -302,7 +310,7 @@ func TestGenerate_ANSI_WithActions(t *testing.T) {
 	})
 
 	router := brain.NewModelRouter()
-	gen := NewUIGenerator(mock, router)
+	gen := newLLMTestGenerator(mock, router)
 
 	result := genSimpleResult("Deploy completed successfully.", 0.92)
 	caps := CLICapabilities()
@@ -345,7 +353,7 @@ func TestGenerate_HTML_FullPage(t *testing.T) {
 	})
 
 	router := brain.NewModelRouter()
-	gen := NewUIGenerator(mock, router)
+	gen := newLLMTestGenerator(mock, router)
 
 	result := genSimpleResult("The analysis is complete. Here are the findings.", 0.85)
 	caps := WebCapabilities(1280, 800)
@@ -386,7 +394,7 @@ func TestGenerate_HTML_ContainsCSS(t *testing.T) {
 	})
 
 	router := brain.NewModelRouter()
-	gen := NewUIGenerator(mock, router)
+	gen := newLLMTestGenerator(mock, router)
 
 	result := genSimpleResult("Styled content.", 0.88)
 	caps := WebCapabilities(1280, 800)
@@ -422,7 +430,7 @@ func TestGenerate_HTML_NoExternalDeps(t *testing.T) {
 	})
 
 	router := brain.NewModelRouter()
-	gen := NewUIGenerator(mock, router)
+	gen := newLLMTestGenerator(mock, router)
 
 	result := genSimpleResult("Self-contained content.", 0.9)
 	caps := WebCapabilities(1280, 800)
@@ -464,7 +472,7 @@ func TestGenerate_HTML_WithActions(t *testing.T) {
 	})
 
 	router := brain.NewModelRouter()
-	gen := NewUIGenerator(mock, router)
+	gen := newLLMTestGenerator(mock, router)
 
 	result := genSimpleResult("Deploy complete with actions available.", 0.91)
 	caps := WebCapabilities(1280, 800)
@@ -495,7 +503,7 @@ func TestGenerate_FallbackOnError(t *testing.T) {
 	})
 
 	router := brain.NewModelRouter()
-	gen := NewUIGenerator(mock, router)
+	gen := newLLMTestGenerator(mock, router)
 
 	result := genSimpleResult("Some text.", 0.8)
 	caps := CLICapabilities()
@@ -561,7 +569,7 @@ func TestGenerate_RespectsCapabilities(t *testing.T) {
 			})
 
 			router := brain.NewModelRouter()
-			gen := NewUIGenerator(mock, router)
+			gen := newLLMTestGenerator(mock, router)
 			result := genSimpleResult("Test content.", 0.85)
 
 			ui, err := gen.Generate(context.Background(), result, tt.caps)
@@ -609,7 +617,7 @@ func TestGenerate_UsesHintsFromMemory(t *testing.T) {
 	})
 
 	router := brain.NewModelRouter()
-	gen := NewUIGenerator(mock, router)
+	gen := newLLMTestGenerator(mock, router)
 
 	result := genSimpleResult("Result with UI hints.", 0.87)
 	caps := CLICapabilities()
@@ -699,7 +707,7 @@ func TestGenerate_ValidationRetry(t *testing.T) {
 	})
 
 	router := brain.NewModelRouter()
-	gen := NewUIGenerator(mock, router)
+	gen := newLLMTestGenerator(mock, router)
 	result := genSimpleResult("Test retry.", 0.8)
 	caps := CLICapabilities()
 
@@ -727,7 +735,7 @@ func TestGenerate_ValidationExhausted(t *testing.T) {
 	})
 
 	router := brain.NewModelRouter()
-	gen := NewUIGenerator(mock, router)
+	gen := newLLMTestGenerator(mock, router)
 	result := genSimpleResult("Test exhaust.", 0.8)
 	caps := CLICapabilities()
 
@@ -757,7 +765,7 @@ func TestGenerate_QualityScoreInPrompt(t *testing.T) {
 	})
 
 	router := brain.NewModelRouter()
-	gen := NewUIGenerator(mock, router)
+	gen := newLLMTestGenerator(mock, router)
 	result := genSimpleResult("Test quality display.", 0.73)
 	caps := CLICapabilities()
 
@@ -783,7 +791,7 @@ func TestGenerate_WithThought_NilThought(t *testing.T) {
 	})
 
 	router := brain.NewModelRouter()
-	gen := NewUIGenerator(mock, router)
+	gen := newLLMTestGenerator(mock, router)
 	result := genSimpleResult("No thought provided.", 0.9)
 	caps := CLICapabilities()
 
@@ -813,7 +821,7 @@ func TestGenerate_ModelRouterSelection(t *testing.T) {
 	})
 
 	router := brain.NewModelRouter()
-	gen := NewUIGenerator(mock, router)
+	gen := newLLMTestGenerator(mock, router)
 	result := genSimpleResult("Test model selection.", 0.85)
 	caps := CLICapabilities()
 

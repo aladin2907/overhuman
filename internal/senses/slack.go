@@ -1,6 +1,7 @@
 package senses
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"time"
 )
 
 // SlackConfig holds Slack app configuration.
@@ -26,6 +28,10 @@ type SlackSense struct {
 	cancel   context.CancelFunc
 	srv      *http.Server
 	listener net.Listener
+	client   *http.Client
+
+	// apiBase is the Slack API base URL. Override in tests.
+	apiBase string
 }
 
 // NewSlackSense creates a Slack adapter.
@@ -33,7 +39,11 @@ func NewSlackSense(config SlackConfig) *SlackSense {
 	if config.ListenAddr == "" {
 		config.ListenAddr = ":3001"
 	}
-	return &SlackSense{config: config}
+	return &SlackSense{
+		config:  config,
+		client:  &http.Client{Timeout: 30 * time.Second},
+		apiBase: "https://slack.com/api",
+	}
 }
 
 func (s *SlackSense) Name() string { return "Slack" }
@@ -124,13 +134,43 @@ func (s *SlackSense) handleEvents(out chan<- *UnifiedInput) http.HandlerFunc {
 	}
 }
 
-// Send posts a message to a Slack channel.
+// Send posts a message to a Slack channel via chat.postMessage API.
 func (s *SlackSense) Send(ctx context.Context, target string, message string) error {
-	// Uses chat.postMessage API.
-	// target is the channel ID.
-	_ = target
-	_ = message
-	// Placeholder for actual Slack API call.
+	if message == "" {
+		return fmt.Errorf("slack: empty message")
+	}
+
+	payload, _ := json.Marshal(map[string]string{
+		"channel": target,
+		"text":    message,
+	})
+
+	url := s.apiBase + "/chat.postMessage"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+	if err != nil {
+		return fmt.Errorf("slack: create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+s.config.BotToken)
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("slack: send: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+
+	var result struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error,omitempty"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return fmt.Errorf("slack: parse response: %w", err)
+	}
+	if !result.OK {
+		return fmt.Errorf("slack: API error: %s", result.Error)
+	}
 	return nil
 }
 

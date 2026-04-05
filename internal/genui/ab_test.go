@@ -106,6 +106,7 @@ func TestABTestEngine_CreateTest(t *testing.T) {
 
 	router := brain.NewModelRouter()
 	gen := NewUIGenerator(mock, router)
+	gen.fastPathEnabled = false
 
 	cfg := DefaultABTestConfig()
 	mem := NewUIMemory(10)

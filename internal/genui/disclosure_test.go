@@ -175,6 +175,7 @@ func TestThoughtLog_IncludedInPrompt(t *testing.T) {
 	})
 	router := brain.NewModelRouter()
 	gen := NewUIGenerator(mock, router)
+	gen.fastPathEnabled = false
 
 	thought := &ThoughtLog{
 		Stages: []ThoughtStage{
@@ -227,6 +228,7 @@ func TestProgressiveDisclosure_Summary(t *testing.T) {
 	})
 	router := brain.NewModelRouter()
 	gen := NewUIGenerator(mock, router)
+	gen.fastPathEnabled = false
 
 	thought := &ThoughtLog{
 		Stages: []ThoughtStage{

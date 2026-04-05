@@ -15,18 +15,18 @@
 - Нет самообучения — каждая сессия с нуля
 - Rate limits (Claude Pro ~45 сообщений / 5 часов)
 
-**Агентные фреймворки** (AutoGPT, CrewAI, LangGraph):
-- AutoGPT: бесконечные циклы, $50+ на провальные задачи, не production-ready
-- CrewAI: сложно, loops на десятки минут, болезненный дебаг
-- LangGraph: надёжный, но низкоуровневый — это SDK, не продукт
+**Агентные фреймворки** (autonomous agents, multi-agent orchestrators, graph-based pipelines):
+- Autonomous agents: бесконечные циклы, $50+ на провальные задачи, не production-ready
+- Multi-agent orchestrators: сложно, loops на десятки минут, болезненный дебаг
+- Graph-based pipelines: надёжные, но низкоуровневые — это SDK, не продукт
 - Все: нет настоящего самообучения, нет перехода LLM→Code
 
-**OpenClaw** (191k stars, viral hit 2025):
-- Лучший из существующих: multi-channel, soul, heartbeat, skills, local-first
-- НО: дыры в безопасности (CVE-2026-25253 RCE, prompt injection, supply chain)
+**Существующие multi-channel agent platforms:**
+- Наиболее продвинутые: multi-channel, identity, heartbeat, skills, local-first
+- НО: дыры в безопасности (RCE, prompt injection, supply chain attacks через plugins)
 - НО: нет настоящего self-improvement (skills пишутся вручную)
 - НО: entangled roles — один LLM планирует, исполняет И редактирует себя
-- НО: сломанный cron scheduler, потеря API ключей после рестарта
+- НО: нестабильные scheduler-ы, потеря API ключей после рестарта
 - НО: flat memory — нет knowledge graph, нет semantic search
 - НО: нет fitness-метрик, нет A/B, нет автоматической эволюции
 
@@ -44,7 +44,7 @@
 
 **Никто не делает полный цикл: обучение через повторение → автоматическая генерация кода → замена LLM-вызовов на код → экономия.**
 
-OpenClaw умеет создавать skills, но вручную. AutoGPT умеет исполнять, но не учится. Claude Code пишет код, но не знает контекст жизни пользователя.
+Существующие agent platforms умеют создавать skills, но вручную. Autonomous agents умеют исполнять, но не учатся. Code assistants пишут код, но не знают контекст жизни пользователя.
 
 ---
 
@@ -58,7 +58,7 @@ OpenClaw умеет создавать skills, но вручную. AutoGPT ум
 | Стадия | Примеры | Характеристика |
 |--------|---------|---------------|
 | 1. Reactive Chatbot | ChatGPT, Claude chat | Отвечает на вопросы. Нет памяти, нет инструментов |
-| 2. Tool-Using Agent | OpenClaw, Claude Code | Есть инструменты, есть память, но stateless между сессиями |
+| 2. Tool-Using Agent | Agent platforms, code assistants | Есть инструменты, есть память, но stateless между сессиями |
 | **3. Self-Evolving Organism** | **Overhuman** | Идентичность, обучение, автоматизация, мета-рефлексия |
 
 ### Flywheel Effect (маховик)
@@ -81,19 +81,19 @@ OpenClaw умеет создавать skills, но вручную. AutoGPT ум
 
 ### Overhuman vs Всё остальное
 
-| Возможность | OpenClaw | Claude Code | AutoGPT | CrewAI | LangGraph | **Overhuman** |
-|------------|----------|-------------|---------|--------|-----------|--------------|
-| Multi-channel input | 13+ каналов | Terminal only | Terminal | API | API | **Multi-channel + Timer** |
-| Persistent memory | File-based | Нет | Vector DB (нестабильно) | Нет | Нет | **Short+Long+Patterns+SKB** |
-| Self-improvement | Skill creation (ручное) | Нет | Нет | Нет | Нет | **4 петли рефлексии** |
-| LLM→Code transition | Нет | Нет | Нет | Нет | Нет | **Автоматический** |
-| Evolutionary selection | Нет | Нет | Нет | Нет | Нет | **Fitness + A/B** |
-| Identity/Soul | SOUL.md (статичный) | Нет | Нет | Нет | Нет | **Живой документ** |
-| Proactive goals | HEARTBEAT (cron list) | Нет | Task loop | Нет | Нет | **GoalEngine** |
-| Budget control | Нет | Нет | Нет | Нет | Нет | **Per-task + global** |
-| Version control + rollback | Нет | Нет | Нет | Нет | Нет | **Полный + auto-rollback** |
-| Security architecture | Уязвим (RCE, SSRF) | Sandbox | Уязвим | Basic | Basic | **Security-first design** |
-| Fractal agents | Нет | Нет | Нет | Multi-agent crews | Graph nodes | **Иерархия со своим soul** |
+| Возможность | Agent Platforms | Code Assistants | Autonomous Agents | Multi-Agent Orchestrators | **Overhuman** |
+|------------|----------------|-----------------|-------------------|--------------------------|--------------|
+| Multi-channel input | До 13 каналов | Terminal only | Terminal / API | API | **Multi-channel + Timer** |
+| Persistent memory | File-based | Нет | Vector DB (нестабильно) | Нет | **Short+Long+Patterns+SKB** |
+| Self-improvement | Skill creation (ручное) | Нет | Нет | Нет | **4 петли рефлексии** |
+| LLM→Code transition | Нет | Нет | Нет | Нет | **Автоматический** |
+| Evolutionary selection | Нет | Нет | Нет | Нет | **Fitness + A/B** |
+| Identity/Soul | Статичный файл | Нет | Нет | Нет | **Живой документ** |
+| Proactive goals | Cron list | Нет | Task loop | Нет | **GoalEngine** |
+| Budget control | Нет | Нет | Нет | Нет | **Per-task + global** |
+| Version control + rollback | Нет | Нет | Нет | Нет | **Полный + auto-rollback** |
+| Security architecture | Уязвимы (RCE, SSRF) | Sandbox | Уязвимы | Basic | **Security-first design** |
+| Fractal agents | Нет | Нет | Нет | Multi-agent crews | **Иерархия со своим soul** |
 
 ### 5 ключевых инноваций Overhuman
 
@@ -105,26 +105,26 @@ OpenClaw умеет создавать skills, но вручную. AutoGPT ум
 
 ---
 
-## 4. ЧТО БЕРЁМ ОТ OPENCLAW (лучшие идеи)
+## 4. АРХИТЕКТУРНЫЕ ПРИНЦИПЫ
 
-| Идея OpenClaw | Что берём | Как улучшаем |
-|---------------|-----------|-------------|
-| Gateway (центральный хаб) | Архитектурный паттерн | Добавляем Budget Engine и Security Layer |
-| Soul файл | Концепция идентичности | Делаем живым: версионирование, эволюция, неизменяемые якоря |
-| Heartbeat (cron) | Проактивное поведение | GoalEngine вместо плоского cron-списка |
-| Markdown Skills | Формат навыков | + Code-skills + Hybrid + автогенерация + fitness |
-| Multi-channel | 13+ каналов | Архитектура InputAdapters — любой канал через адаптер |
-| Local-first | Всё хранится локально | SQLite + файлы, git-versionable |
-| File-based memory | Прозрачность, инспектируемость | + Long-term summarization + semantic search |
-| Lane Queue | Последовательная обработка | + Параллелизм через asyncio DAG |
-| Session keys | workspace:channel:userId | Берём как есть |
+| Принцип | Реализация | Преимущество |
+|---------|-----------|-------------|
+| Gateway (центральный хаб) | Единая точка входа для всех сигналов | Budget Engine и Security Layer на уровне архитектуры |
+| Живая идентичность (Soul) | Файл-DNA с версионированием | Эволюция, неизменяемые якоря, история изменений |
+| Проактивное поведение | GoalEngine вместо плоского cron-списка | Агент сам ставит цели, а не просто выполняет расписание |
+| Мультиформатные навыки | Code-skills + LLM-skills + Hybrid | Автогенерация + fitness-метрики + конкурентный отбор |
+| Multi-channel архитектура | InputAdapters — любой канал через адаптер | Расширяемость без изменения ядра |
+| Local-first хранение | SQLite + файлы, git-versionable | Прозрачность, приватность, инспектируемость |
+| Многоуровневая память | Short-term + Long-term + Patterns | Summarization + semantic search |
+| Параллельная обработка | DAG executor с goroutines | Эффективное использование ресурсов |
+| Контекстные сессии | workspace:channel:userId | Изоляция и маршрутизация сигналов |
 
-### Чего НЕ берём
+### Антипаттерны (чего намеренно избегаем)
 
-- Node.js runtime (Python лучше для AI/ML ecosystem)
+- Тяжёлые runtime (Node.js, Python) для daemon-процесса
 - `exec()` без sandbox (security-first)
 - Entangled roles (разделяем планирование, исполнение, самоизменение)
-- Плоскую память без semantic search
+- Плоская память без semantic search
 - Отсутствие метрик качества
 
 ---
@@ -165,20 +165,20 @@ OpenClaw умеет создавать skills, но вручную. AutoGPT ум
 
 ### 12 подсистем (кратко)
 
-| # | Система | Назначение | Аналог в OpenClaw |
-|---|---------|-----------|-------------------|
-| 1 | **Soul** | Идентичность, принципы, стратегии, эволюция | SOUL.md (статичный) |
-| 2 | **Signal Intake** | Приём и нормализация входных сигналов | Channel plugins |
-| 3 | **Brain (LLM)** | Думает и решает. НЕ исполняет | LLM provider |
-| 4 | **Instruments** | Skills, код, контейнеры, субагенты | Skills + tools |
-| 5 | **Memory** | Short/long term, patterns, run history | Conversation logs |
-| 6 | **Reflection** | 4 вложенных петли обратной связи | Нет |
-| 7 | **GoalEngine** | Проактивные цели из рефлексии | HEARTBEAT.md |
-| 8 | **Evolution** | Fitness, A/B, deprecation, автогенерация | Нет |
-| 9 | **Version Control** | Версии + observation window + auto-rollback | Нет |
-| 10 | **SKB** | Межагентный обмен опытом | Нет |
-| 11 | **Budget** | Cost control, model routing, лимиты | Нет |
-| 12 | **Execution Engine** | 10-стадийный пайплайн | Pipeline (неформализованный) |
+| # | Система | Назначение |
+|---|---------|-----------|
+| 1 | **Soul** | Идентичность, принципы, стратегии, эволюция |
+| 2 | **Signal Intake** | Приём и нормализация входных сигналов |
+| 3 | **Brain (LLM)** | Думает и решает. НЕ исполняет |
+| 4 | **Instruments** | Skills, код, контейнеры, субагенты |
+| 5 | **Memory** | Short/long term, patterns, run history |
+| 6 | **Reflection** | 4 вложенных петли обратной связи |
+| 7 | **GoalEngine** | Проактивные цели из рефлексии |
+| 8 | **Evolution** | Fitness, A/B, deprecation, автогенерация |
+| 9 | **Version Control** | Версии + observation window + auto-rollback |
+| 10 | **SKB** | Межагентный обмен опытом |
+| 11 | **Budget** | Cost control, model routing, лимиты |
+| 12 | **Execution Engine** | 10-стадийный пайплайн |
 
 ### Два режима жизни
 
@@ -215,8 +215,8 @@ OpenClaw умеет создавать skills, но вручную. AutoGPT ум
 
 ### 6.1 Soul (идентичность)
 - ТЗ не содержит понятия идентичности агента
-- Берём от OpenClaw: файл-DNA определяющий "кто я"
-- Улучшаем: версионирование, неизменяемые принципы ("якоря"), история эволюции
+- Вводим концепцию файла-DNA определяющего "кто я"
+- Версионирование, неизменяемые принципы ("якоря"), история эволюции
 
 ### 6.2 Проактивное поведение (Timer + GoalEngine)
 - ТЗ описывает только реактивный режим (сигнал → обработка)
@@ -254,7 +254,7 @@ OpenClaw умеет создавать skills, но вручную. AutoGPT ум
 
 ### 6.8 Security Architecture
 - ТЗ не описывает безопасность
-- Из исследования: OpenClaw взломали (CVE-2026-25253), supply chain attacks через skills
+- Из исследования: supply chain attacks через plugins в popular agent frameworks — реальная угроза
 - Архитектурно предусматриваем: sandbox для code-skills, разделение ролей LLM, валидация skills
 
 ---
@@ -263,13 +263,13 @@ OpenClaw умеет создавать skills, но вручную. AutoGPT ум
 
 ### Исследование языков (данные feb 2026)
 
-| Метрика | Python (asyncio) | Go | Rust | TypeScript (OpenClaw) |
+| Метрика | Python (asyncio) | Go | Rust | Node.js / TypeScript |
 |---------|-----------------|-----|------|----------------------|
-| **Memory usage** | ~200-500MB | **<10MB** | **7.8MB** | 1.52GB |
-| **Startup time** | ~1-3s | **<1s** | **<10ms** | 5.98s |
+| **Memory usage** | ~200-500MB | **<10MB** | **7.8MB** | 1.5GB+ |
+| **Startup time** | ~1-3s | **<1s** | **<10ms** | ~5s |
 | **Binary size** | N/A (interpreter) | Single binary | **3.4MB** | 28MB+ |
 | **Concurrency** | asyncio (I/O-bound OK) | **goroutines** | **Tokio async** | Event loop |
-| **AI/ML ecosystem** | **300k+ пакетов** | Растёт (Google ADK) | Растёт (Rig, ADK-Rust) | Хороший |
+| **AI/ML ecosystem** | **300k+ пакетов** | Растёт | Растёт (Rig) | Хороший |
 | **LLM SDK** | **anthropic, openai native** | Community SDKs | Community SDKs | Хороший |
 | **Dev speed** | **Быстрый** | Быстрый | Медленный | Быстрый |
 | **Scale ceiling** | ~5000 RPS (GIL) | **100k+ RPS** | **100k+ RPS** | ~10k RPS |
@@ -286,11 +286,11 @@ OpenClaw умеет создавать skills, но вручную. AutoGPT ум
 **Go преимущества для daemon:**
 - Goroutines стартуют с KB стека (не MB)
 - Microsoft снизил agent-to-agent latency на 42% заменив Python на Go
-- Google ADK for Go — production-ready
+- Go AI agent ecosystem активно растёт, production-ready фреймворки доступны
 - Single binary = простой deploy
 
 **Rust — максимальная производительность:**
-- ZeroClaw: 194x меньше памяти чем OpenClaw
+- Rust-based agents показывают до 100-200x меньше памяти чем Node.js-based аналоги
 - Memory safety без garbage collector
 - Но: медленная разработка, steep learning curve
 
@@ -307,16 +307,16 @@ OpenClaw умеет создавать skills, но вручную. AutoGPT ум
 - **Multi-channel**: goroutines идеальны для параллельной обработки множества каналов
 - **Single binary**: один файл = простейший deploy, нет dependency hell
 - **Масштабируемость**: не упрёмся в потолок языка при росте пользователей
-- **Google ADK**: production-ready AI agent framework от Google уже на Go
+- **AI ecosystem**: production-ready AI agent фреймворки уже доступны на Go
 - **Надёжность**: strict typing ловит ошибки на компиляции, не в runtime
 - **Ресурсы**: <10MB RAM vs 200-500MB Python — можно запускать даже на Raspberry Pi
-- **Community**: Go растёт как язык для AI tooling (Eino, ADK, PicoClaw)
+- **Community**: Go растёт как язык для AI tooling (Eino и другие)
 
 **LLM SDK на Go:**
 - anthropic-go (community, но стабильный)
 - openai-go (official от OpenAI)
 - langchaingo (LangChain порт)
-- Google ADK (native)
+- Растущий набор Go-native AI фреймворков
 
 **Риски Go:**
 - Меньше AI-библиотек чем у Python (митигация: LLM SDK есть, остальное — HTTP API)
@@ -334,7 +334,7 @@ OpenClaw умеет создавать skills, но вручную. AutoGPT ум
 
 Каналы = динамические "органы чувств" агента. Архитектура адаптеров позволяет подключать новые без изменения ядра.
 
-**MVP каналы (копируем подход OpenClaw):**
+**MVP каналы:**
 | Канал | Протокол | Библиотека Go |
 |-------|----------|---------------|
 | CLI (текст) | stdin/stdout | Built-in |
@@ -552,7 +552,7 @@ overhuman/
 | 1 | Scope | Универсальный | Помогает во всём, субагенты специализируются динамически |
 | 2 | Каналы | Максимум сразу (9 каналов) | CLI + API + Telegram + Slack + Discord + Email + Webhook + File + Timer |
 | 3 | Язык | **Go** | Daemon-first, goroutines, single binary, <10MB, масштабируется |
-| 4 | OpenClaw | Копируем подход, НЕ интегрируемся | Свои адаптеры каналов, без зависимости |
+| 4 | Архитектура каналов | Собственные адаптеры | Свои адаптеры каналов, без внешних зависимостей |
 | 5 | Хранение | SQLite + файлы | Self-contained, human-readable, git-versionable |
 | 6 | Code-skills язык | Агент сам выбирает | Python/JS/Bash/Go — под задачу |
 | 7 | Tool integration | MCP (Model Context Protocol) | Industry standard, 97M+ downloads, совместим с Claude/GPT/Gemini |

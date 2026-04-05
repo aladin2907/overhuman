@@ -26,6 +26,7 @@ func TestSelfHeal_ValidOnFirstTry(t *testing.T) {
 	})
 	router := brain.NewModelRouter()
 	gen := NewUIGenerator(mock, router)
+	gen.fastPathEnabled = false
 
 	ui, err := gen.Generate(context.Background(), selfHealResult(), CLICapabilities())
 	if err != nil {
@@ -50,6 +51,7 @@ func TestSelfHeal_InvalidThenValid(t *testing.T) {
 	})
 	router := brain.NewModelRouter()
 	gen := NewUIGenerator(mock, router)
+	gen.fastPathEnabled = false
 
 	ui, err := gen.Generate(context.Background(), selfHealResult(), CLICapabilities())
 	if err != nil {
@@ -78,6 +80,7 @@ func TestSelfHeal_InvalidTwiceThenValid(t *testing.T) {
 	})
 	router := brain.NewModelRouter()
 	gen := NewUIGenerator(mock, router)
+	gen.fastPathEnabled = false
 
 	ui, err := gen.Generate(context.Background(), selfHealResult(), CLICapabilities())
 	if err != nil {
@@ -97,6 +100,7 @@ func TestSelfHeal_AllRetrysFail_Error(t *testing.T) {
 	})
 	router := brain.NewModelRouter()
 	gen := NewUIGenerator(mock, router)
+	gen.fastPathEnabled = false
 
 	_, err := gen.Generate(context.Background(), selfHealResult(), CLICapabilities())
 	if err == nil {
@@ -121,6 +125,7 @@ func TestSelfHeal_ErrorMessageInPrompt(t *testing.T) {
 	})
 	router := brain.NewModelRouter()
 	gen := NewUIGenerator(mock, router)
+	gen.fastPathEnabled = false
 
 	_, err := gen.Generate(context.Background(), selfHealResult(), CLICapabilities())
 	if err != nil {
@@ -158,6 +163,7 @@ func TestSelfHeal_LLMErrorNotRetried(t *testing.T) {
 	})
 	router := brain.NewModelRouter()
 	gen := NewUIGenerator(mock, router)
+	gen.fastPathEnabled = false
 
 	_, err := gen.Generate(context.Background(), selfHealResult(), CLICapabilities())
 	if err == nil {
@@ -177,6 +183,7 @@ func TestSelfHeal_ValidHTML_NoRetry(t *testing.T) {
 	})
 	router := brain.NewModelRouter()
 	gen := NewUIGenerator(mock, router)
+	gen.fastPathEnabled = false
 
 	caps := WebCapabilities(1024, 768)
 	ui, err := gen.Generate(context.Background(), selfHealResult(), caps)
@@ -205,6 +212,7 @@ func TestSelfHeal_InvalidHTML_Retry(t *testing.T) {
 	})
 	router := brain.NewModelRouter()
 	gen := NewUIGenerator(mock, router)
+	gen.fastPathEnabled = false
 
 	caps := WebCapabilities(1024, 768)
 	ui, err := gen.Generate(context.Background(), selfHealResult(), caps)

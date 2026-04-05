@@ -37,14 +37,27 @@ type Sense interface {
 // SenseRegistry manages multiple Sense implementations and provides
 // convenience methods for bulk operations (start all, stop all).
 type SenseRegistry struct {
-	mu     sync.RWMutex
-	senses map[string]Sense
+	mu            sync.RWMutex
+	senses        map[string]Sense
+	sourceMap     map[SourceType]string // SourceType → sense name
+	primaryName   string               // primary sense name for notifications
+	primaryTarget string               // primary target (e.g. chat_id)
+}
+
+// sourceTypeToSenseName maps SourceType constants to Sense.Name() values.
+var sourceTypeToSenseName = map[SourceType]string{
+	SourceTelegram: "Telegram",
+	SourceSlack:    "Slack",
+	SourceDiscord:  "Discord",
+	SourceEmail:    "Email",
+	SourceAPI:      "API",
 }
 
 // NewSenseRegistry creates a new, empty SenseRegistry.
 func NewSenseRegistry() *SenseRegistry {
 	return &SenseRegistry{
-		senses: make(map[string]Sense),
+		senses:    make(map[string]Sense),
+		sourceMap: make(map[SourceType]string),
 	}
 }
 
@@ -61,6 +74,36 @@ func (r *SenseRegistry) Get(name string) Sense {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.senses[name]
+}
+
+// GetBySourceType returns the Sense that handles the given SourceType.
+// Uses the sourceTypeToSenseName mapping to find the right adapter.
+func (r *SenseRegistry) GetBySourceType(st SourceType) Sense {
+	name, ok := sourceTypeToSenseName[st]
+	if !ok {
+		return nil
+	}
+	return r.Get(name)
+}
+
+// SetPrimary designates a sense as the primary notification channel.
+// target is the default destination (e.g. Telegram chat_id).
+func (r *SenseRegistry) SetPrimary(senseName string, target string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.primaryName = senseName
+	r.primaryTarget = target
+}
+
+// GetPrimary returns the primary sense and its default target for notifications.
+// Returns nil, "" if no primary is set.
+func (r *SenseRegistry) GetPrimary() (Sense, string) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.primaryName == "" {
+		return nil, ""
+	}
+	return r.senses[r.primaryName], r.primaryTarget
 }
 
 // StartAll starts every registered Sense in its own goroutine.

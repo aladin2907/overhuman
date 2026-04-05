@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -574,14 +575,100 @@ func runDaemon() {
 	// Shared input channel.
 	out := make(chan *senses.UnifiedInput, 50)
 
+	// Sense registry — manages all input/output channel adapters.
+	registry := senses.NewSenseRegistry()
+
 	// Start HTTP API sense.
 	api := senses.NewAPISense(cfg.APIAddr)
+	registry.Register(api)
 	go func() {
 		log.Printf("[daemon] API listening on %s", cfg.APIAddr)
 		if err := api.Start(ctx, out); err != nil && ctx.Err() == nil {
 			log.Printf("[daemon] API error: %v", err)
 		}
 	}()
+
+	// Channel adapters — start if configured via environment variables.
+	if token := os.Getenv("TELEGRAM_BOT_TOKEN"); token != "" {
+		tgCfg := senses.TelegramConfig{Token: token}
+		if ids := os.Getenv("TELEGRAM_ALLOWED_IDS"); ids != "" {
+			for _, idStr := range strings.Split(ids, ",") {
+				idStr = strings.TrimSpace(idStr)
+				if id, err := strconv.ParseInt(idStr, 10, 64); err == nil {
+					tgCfg.AllowedIDs = append(tgCfg.AllowedIDs, id)
+				}
+			}
+		}
+		tg := senses.NewTelegramSense(tgCfg)
+		registry.Register(tg)
+		go func() {
+			log.Printf("[daemon] Telegram bot started")
+			if err := tg.Start(ctx, out); err != nil && ctx.Err() == nil {
+				log.Printf("[daemon] Telegram error: %v", err)
+			}
+		}()
+
+		// Set Telegram as primary notification channel if TELEGRAM_CHAT_ID is set.
+		if chatID := os.Getenv("TELEGRAM_CHAT_ID"); chatID != "" {
+			registry.SetPrimary("Telegram", chatID)
+			log.Printf("[daemon] primary notification: Telegram chat %s", chatID)
+		}
+	}
+
+	if token := os.Getenv("SLACK_BOT_TOKEN"); token != "" {
+		slAddr := os.Getenv("SLACK_LISTEN_ADDR")
+		if slAddr == "" {
+			slAddr = ":3001"
+		}
+		sl := senses.NewSlackSense(senses.SlackConfig{
+			BotToken:   token,
+			ListenAddr: slAddr,
+		})
+		registry.Register(sl)
+		go func() {
+			log.Printf("[daemon] Slack bot started on %s", slAddr)
+			if err := sl.Start(ctx, out); err != nil && ctx.Err() == nil {
+				log.Printf("[daemon] Slack error: %v", err)
+			}
+		}()
+	}
+
+	if token := os.Getenv("DISCORD_BOT_TOKEN"); token != "" {
+		dcAddr := os.Getenv("DISCORD_LISTEN_ADDR")
+		if dcAddr == "" {
+			dcAddr = ":3002"
+		}
+		dc := senses.NewDiscordSense(senses.DiscordConfig{
+			BotToken:   token,
+			ListenAddr: dcAddr,
+		})
+		registry.Register(dc)
+		go func() {
+			log.Printf("[daemon] Discord bot started on %s", dcAddr)
+			if err := dc.Start(ctx, out); err != nil && ctx.Err() == nil {
+				log.Printf("[daemon] Discord error: %v", err)
+			}
+		}()
+	}
+
+	if imapHost := os.Getenv("EMAIL_IMAP_HOST"); imapHost != "" {
+		emailSense := senses.NewEmailSense(senses.EmailConfig{
+			IMAPServer: imapHost, // e.g., "imap.gmail.com:993"
+			IMAPUser:   os.Getenv("EMAIL_IMAP_USER"),
+			IMAPPass:   os.Getenv("EMAIL_IMAP_PASS"),
+			SMTPServer: os.Getenv("EMAIL_SMTP_HOST"), // e.g., "smtp.gmail.com:587"
+			SMTPUser:   os.Getenv("EMAIL_SMTP_USER"),
+			SMTPPass:   os.Getenv("EMAIL_SMTP_PASS"),
+			FromAddr:   os.Getenv("EMAIL_FROM"),
+		})
+		registry.Register(emailSense)
+		go func() {
+			log.Printf("[daemon] Email sense started (IMAP: %s)", imapHost)
+			if err := emailSense.Start(ctx, out); err != nil && ctx.Err() == nil {
+				log.Printf("[daemon] Email error: %v", err)
+			}
+		}()
+	}
 
 	// WebSocket UI server on derived port (API port + 1).
 	wsAddr := deriveWSAddr(cfg.APIAddr)
@@ -744,9 +831,17 @@ func runDaemon() {
 					result.AutomationTriggered,
 				)
 
-				// If the input has a response channel, try to send back.
-				if input.CorrelationID != "" && input.ResponseChannel == "api" {
-					api.Send(ctx, input.CorrelationID, result.Result)
+				// Route response back to the originating channel.
+				if input.ResponseChannel != "" {
+					if input.SourceType == senses.SourceAPI && input.CorrelationID != "" {
+						// API sync request — use correlation-based routing.
+						api.Send(ctx, input.CorrelationID, result.Result)
+					} else if sense := registry.GetBySourceType(input.SourceType); sense != nil {
+						// Telegram, Slack, Discord, Email — send reply.
+						if err := sense.Send(ctx, input.ResponseChannel, result.Result); err != nil {
+							log.Printf("[daemon] reply via %s: %v", input.SourceType, err)
+						}
+					}
 				}
 
 				// Generate UI and broadcast to connected WebSocket clients.

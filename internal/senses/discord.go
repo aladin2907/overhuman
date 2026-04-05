@@ -1,6 +1,7 @@
 package senses
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"time"
 )
 
 // DiscordConfig holds Discord bot configuration.
@@ -18,6 +20,9 @@ type DiscordConfig struct {
 	ListenAddr  string `json:"listen_addr"` // Webhook endpoint address
 }
 
+// discordMaxMessageLen is the Discord message length limit.
+const discordMaxMessageLen = 2000
+
 // DiscordSense receives messages from Discord via Interactions endpoint.
 type DiscordSense struct {
 	config   DiscordConfig
@@ -26,6 +31,10 @@ type DiscordSense struct {
 	cancel   context.CancelFunc
 	srv      *http.Server
 	listener net.Listener
+	client   *http.Client
+
+	// apiBase is the Discord API base URL. Override in tests.
+	apiBase string
 }
 
 // NewDiscordSense creates a Discord adapter.
@@ -33,7 +42,11 @@ func NewDiscordSense(config DiscordConfig) *DiscordSense {
 	if config.ListenAddr == "" {
 		config.ListenAddr = ":3002"
 	}
-	return &DiscordSense{config: config}
+	return &DiscordSense{
+		config:  config,
+		client:  &http.Client{Timeout: 30 * time.Second},
+		apiBase: "https://discord.com/api/v10",
+	}
 }
 
 func (s *DiscordSense) Name() string { return "Discord" }
@@ -137,11 +150,54 @@ func (s *DiscordSense) handleInteraction(out chan<- *UnifiedInput) http.HandlerF
 	}
 }
 
-// Send sends a message to a Discord channel.
+// Send sends a message to a Discord channel via REST API.
+// Long messages are automatically split into chunks of discordMaxMessageLen.
 func (s *DiscordSense) Send(ctx context.Context, target string, message string) error {
-	// Uses Discord REST API: POST /channels/{id}/messages
-	_ = target
-	_ = message
+	if message == "" {
+		return fmt.Errorf("discord: empty message")
+	}
+
+	// Split into chunks for Discord's 2000-char limit.
+	for len(message) > 0 {
+		chunk := message
+		if len(chunk) > discordMaxMessageLen {
+			chunk = message[:discordMaxMessageLen]
+			message = message[discordMaxMessageLen:]
+		} else {
+			message = ""
+		}
+
+		if err := s.sendChunk(ctx, target, chunk); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// sendChunk sends a single message chunk to Discord.
+func (s *DiscordSense) sendChunk(ctx context.Context, channelID, content string) error {
+	payload, _ := json.Marshal(map[string]string{
+		"content": content,
+	})
+
+	url := fmt.Sprintf("%s/channels/%s/messages", s.apiBase, channelID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+	if err != nil {
+		return fmt.Errorf("discord: create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bot "+s.config.BotToken)
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("discord: send: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("discord: API error %d: %s", resp.StatusCode, string(body))
+	}
 	return nil
 }
 

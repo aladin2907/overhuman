@@ -18,6 +18,7 @@ func TestUIAPIHandler_Generate(t *testing.T) {
 
 	router := brain.NewModelRouter()
 	gen := NewUIGenerator(mock, router)
+	gen.fastPathEnabled = false
 	handler := NewUIAPIHandler(gen, nil)
 
 	mux := http.NewServeMux()
@@ -53,6 +54,7 @@ func TestUIAPIHandler_Generate(t *testing.T) {
 
 func TestUIAPIHandler_Generate_MissingResult(t *testing.T) {
 	gen := NewUIGenerator(nil, brain.NewModelRouter())
+	gen.fastPathEnabled = false
 	handler := NewUIAPIHandler(gen, nil)
 
 	mux := http.NewServeMux()
@@ -70,6 +72,7 @@ func TestUIAPIHandler_Generate_MissingResult(t *testing.T) {
 
 func TestUIAPIHandler_Generate_InvalidJSON(t *testing.T) {
 	gen := NewUIGenerator(nil, brain.NewModelRouter())
+	gen.fastPathEnabled = false
 	handler := NewUIAPIHandler(gen, nil)
 
 	mux := http.NewServeMux()
@@ -86,6 +89,7 @@ func TestUIAPIHandler_Generate_InvalidJSON(t *testing.T) {
 
 func TestUIAPIHandler_GetLast_Empty(t *testing.T) {
 	gen := NewUIGenerator(nil, brain.NewModelRouter())
+	gen.fastPathEnabled = false
 	handler := NewUIAPIHandler(gen, nil)
 
 	mux := http.NewServeMux()
@@ -102,6 +106,7 @@ func TestUIAPIHandler_GetLast_Empty(t *testing.T) {
 
 func TestUIAPIHandler_GetLast_WithCache(t *testing.T) {
 	gen := NewUIGenerator(nil, brain.NewModelRouter())
+	gen.fastPathEnabled = false
 	handler := NewUIAPIHandler(gen, nil)
 
 	// Pre-cache a UI.
@@ -134,6 +139,7 @@ func TestUIAPIHandler_GetLast_WithCache(t *testing.T) {
 
 func TestUIAPIHandler_WSStatus_NoServer(t *testing.T) {
 	gen := NewUIGenerator(nil, brain.NewModelRouter())
+	gen.fastPathEnabled = false
 	handler := NewUIAPIHandler(gen, nil) // nil wsServer
 
 	mux := http.NewServeMux()
@@ -156,6 +162,7 @@ func TestUIAPIHandler_WSStatus_NoServer(t *testing.T) {
 
 func TestUIAPIHandler_WSStatus_WithServer(t *testing.T) {
 	gen := NewUIGenerator(nil, brain.NewModelRouter())
+	gen.fastPathEnabled = false
 	ws := NewWSServer(":0")
 	handler := NewUIAPIHandler(gen, ws)
 
@@ -179,6 +186,7 @@ func TestUIAPIHandler_WSStatus_WithServer(t *testing.T) {
 
 func TestUIAPIHandler_CacheUI(t *testing.T) {
 	gen := NewUIGenerator(nil, brain.NewModelRouter())
+	gen.fastPathEnabled = false
 	handler := NewUIAPIHandler(gen, nil)
 
 	handler.CacheUI(&GeneratedUI{TaskID: "t1", Code: "a"})
@@ -195,6 +203,7 @@ func TestUIAPIHandler_Generate_WithCustomCaps(t *testing.T) {
 
 	router := brain.NewModelRouter()
 	gen := NewUIGenerator(mock, router)
+	gen.fastPathEnabled = false
 	handler := NewUIAPIHandler(gen, nil)
 
 	mux := http.NewServeMux()

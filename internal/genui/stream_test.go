@@ -30,6 +30,7 @@ func TestStreamGenerate_ProducesChunks(t *testing.T) {
 
 	router := brain.NewModelRouter()
 	gen := NewUIGenerator(mock, router)
+	gen.fastPathEnabled = false
 	result := genSimpleResult("test stream", 0.9)
 	caps := WebCapabilities(1280, 800)
 
@@ -74,6 +75,7 @@ func TestStreamGenerate_SmallContent(t *testing.T) {
 
 	router := brain.NewModelRouter()
 	gen := NewUIGenerator(mock, router)
+	gen.fastPathEnabled = false
 	result := genSimpleResult("short", 0.9)
 	caps := CLICapabilities()
 
@@ -113,6 +115,7 @@ func TestStreamGenerate_LLMError(t *testing.T) {
 
 	router := brain.NewModelRouter()
 	gen := NewUIGenerator(mock, router)
+	gen.fastPathEnabled = false
 	result := genSimpleResult("fail", 0.5)
 	caps := CLICapabilities()
 
@@ -145,6 +148,7 @@ func TestStreamGenerate_ContextCancellation(t *testing.T) {
 
 	router := brain.NewModelRouter()
 	gen := NewUIGenerator(mock, router)
+	gen.fastPathEnabled = false
 	result := genSimpleResult("cancel me", 0.8)
 	caps := CLICapabilities()
 
@@ -174,6 +178,7 @@ func TestStreamGenerate_DefaultConfigFallbacks(t *testing.T) {
 
 	router := brain.NewModelRouter()
 	gen := NewUIGenerator(mock, router)
+	gen.fastPathEnabled = false
 	result := genSimpleResult("defaults", 0.8)
 	caps := CLICapabilities()
 
@@ -198,6 +203,7 @@ func TestStreamGenerateWithCallback(t *testing.T) {
 
 	router := brain.NewModelRouter()
 	gen := NewUIGenerator(mock, router)
+	gen.fastPathEnabled = false
 	result := genSimpleResult("callback", 0.9)
 	caps := CLICapabilities()
 

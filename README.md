@@ -60,23 +60,23 @@ No component registry. No JSON schema. The agent decides the best visualization 
                              ▲
                              │
   Level 3 ─── Fully     ┌───┴────────────────────┐
-  Generated              │  Gemini Dynamic View   │
-                         │  Claude Artifacts      │
+  Generated              │  Cloud AI Generators   │
+                         │  AI Sandbox Tools      │
                          │  ★ OVERHUMAN           │
                          └────────────────────────┘
                              │
-  Level 2 ─── Declarative   │  Google A2UI
-                             │  Yandex DivKit
+  Level 2 ─── Declarative   │  Declarative JSON UI
+                             │  Server-Driven UI
                              │
-  Level 1 ─── Controlled    │  Vercel AI SDK
-                             │  AG-UI
+  Level 1 ─── Controlled    │  Component Libraries
+                             │  Transport Layers
                              │
               ───────────────┴─────────────────────► Safety
                    Low                          High
 ```
 
 > [!NOTE]
-> **Level 1-2** limit the agent to what a developer pre-built. **Level 3** means infinite UI surface — the agent can create any visualization it can imagine. The tradeoff is sandboxing (solved) and non-determinism (solved via self-healing + reflection). Google's research confirms LLMs are effective UI generators, achieving ELO 1710 against human-crafted designs ([paper](https://generativeui.github.io/)).
+> **Level 1-2** limit the agent to what a developer pre-built. **Level 3** means infinite UI surface — the agent can create any visualization it can imagine. The tradeoff is sandboxing (solved) and non-determinism (solved via self-healing + reflection). Research confirms LLMs are effective UI generators, achieving ELO 1710 against human-crafted designs ([paper](https://generativeui.github.io/)).
 
 <br>
 
@@ -355,7 +355,7 @@ overhuman uninstall    # remove OS service
 | **Anthropic Claude** | Required | Claude Sonnet, Haiku, Opus |
 | **Ollama** | — | Local models (llama3, mistral, etc.) Free |
 | **LM Studio** | — | Local models via GUI |
-| **Groq** | Required | Fast inference (Llama, DeepSeek, Qwen) |
+| **Groq** | Required | Fast inference (Llama, open-source models) |
 | **Together AI** | Required | Open-source models hosted |
 | **OpenRouter** | Required | All models through a single key |
 | **Custom** | Optional | Any OpenAI-compatible server |

@@ -29,6 +29,7 @@ type GeneratedUI struct {
 	Meta    UIMeta            `json:"meta,omitempty"`
 	Thought *ThoughtLog       `json:"thought,omitempty"` // pipeline thought chain
 	Sandbox bool              `json:"sandbox,omitempty"` // wrap in sandboxed iframe
+	Source  string            `json:"source,omitempty"`  // "fastpath" or "llm"
 }
 
 // GeneratedAction is an interactive action embedded in generated UI.
@@ -137,49 +138,88 @@ type UIReflection struct {
 }
 
 // UIGenerator generates UI code from pipeline results using LLM.
+// When fastPathEnabled is true (default), common content patterns are
+// rendered declaratively without an LLM call (hybrid Level 2+3).
 type UIGenerator struct {
-	llm    brain.LLMProvider
-	router *brain.ModelRouter
+	llm             brain.LLMProvider
+	router          *brain.ModelRouter
+	fastPathEnabled bool
 }
 
-// NewUIGenerator creates a new UIGenerator.
+// NewUIGenerator creates a new UIGenerator with fast path enabled.
 func NewUIGenerator(llm brain.LLMProvider, router *brain.ModelRouter) *UIGenerator {
-	return &UIGenerator{llm: llm, router: router}
+	return &UIGenerator{llm: llm, router: router, fastPathEnabled: true}
 }
 
 // Generate creates a GeneratedUI from a pipeline result.
+// Tries the fast declarative path first; falls through to LLM if unmatched.
 func (g *UIGenerator) Generate(ctx context.Context, result pipeline.RunResult, caps DeviceCapabilities) (*GeneratedUI, error) {
 	format := g.selectFormat(caps)
-	prompt := g.buildPrompt(result, format, caps, nil, nil)
 
+	// Level 2: fast declarative path.
+	if g.fastPathEnabled {
+		if fp := TryFastPath(result.Result, format); fp.Matched {
+			return &GeneratedUI{
+				TaskID: result.TaskID,
+				Format: format,
+				Code:   fp.Code,
+				Source: "fastpath",
+			}, nil
+		}
+	}
+
+	// Level 3: LLM generation.
+	prompt := g.buildPrompt(result, format, caps, nil, nil)
 	code, err := g.generateWithRetry(ctx, prompt, format, 2)
 	if err != nil {
 		return nil, err
 	}
-
-	ui := &GeneratedUI{
+	return &GeneratedUI{
 		TaskID: result.TaskID,
 		Format: format,
 		Code:   code,
-	}
-	return ui, nil
+		Source: "llm",
+	}, nil
 }
 
 // GenerateWithThought creates a GeneratedUI with ThoughtLog included.
+// Tries the fast declarative path first; falls through to LLM if unmatched.
 func (g *UIGenerator) GenerateWithThought(ctx context.Context, result pipeline.RunResult, caps DeviceCapabilities, thought *ThoughtLog, hints []string) (*GeneratedUI, error) {
 	format := g.selectFormat(caps)
-	prompt := g.buildPrompt(result, format, caps, thought, hints)
 
+	// Level 2: fast declarative path.
+	if g.fastPathEnabled {
+		if fp := TryFastPath(result.Result, format); fp.Matched {
+			code := fp.Code
+			if thought != nil && len(thought.Stages) > 0 && format == FormatANSI {
+				code += "\n" + FormatThoughtLogANSI(thought)
+			}
+			ui := &GeneratedUI{
+				TaskID:  result.TaskID,
+				Format:  format,
+				Code:    code,
+				Thought: thought,
+				Source:  "fastpath",
+			}
+			if thought != nil {
+				ui.Meta.Summary = fmt.Sprintf("Completed in %dms", thought.TotalMs)
+			}
+			return ui, nil
+		}
+	}
+
+	// Level 3: LLM generation.
+	prompt := g.buildPrompt(result, format, caps, thought, hints)
 	code, err := g.generateWithRetry(ctx, prompt, format, 2)
 	if err != nil {
 		return nil, err
 	}
-
 	ui := &GeneratedUI{
 		TaskID:  result.TaskID,
 		Format:  format,
 		Code:    code,
 		Thought: thought,
+		Source:  "llm",
 	}
 	if thought != nil {
 		ui.Meta.Summary = fmt.Sprintf("Completed in %dms", thought.TotalMs)
