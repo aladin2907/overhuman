@@ -11,7 +11,7 @@ builds:
   - main: ./cmd/overhuman
     binary: overhuman
     env:
-      - CGO_ENABLED=1
+      - CGO_ENABLED=0
     goos:
       - linux
       - darwin
